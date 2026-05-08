@@ -28,11 +28,11 @@ import { EmptyState } from "../shared/empty-state";
 import { ModuleGroupNode } from "./nodes/module-group-node";
 import { FileNode } from "./nodes/file-node";
 import { DependencyEdge } from "./edges/dependency-edge";
-import { GraphProvider, type GraphContextValue } from "./context";
-import { GraphTooltip } from "./graph-tooltip";
-import { groupNodesAsModules, type FileNodeData } from "./elk-layout";
-import { computeForceLayout } from "./force-layout";
+import { GraphProvider, type GraphContextValue, type Signal } from "./context";
+import { groupNodesAsModules, type FileNodeData, type ModuleNodeData } from "./elk-layout";
+import { useForceLayout, useModuleForceLayout } from "./use-force-layout";
 import { useModuleElkLayout, useFileElkLayout } from "./use-elk-layout";
+import { useExpandedModules } from "./use-expanded-modules";
 import { GraphToolbar, type ColorMode, type ViewMode, type LayoutMode, type GraphTheme } from "./graph-toolbar";
 import { GraphLegend } from "./graph-legend";
 import { GraphContextMenu } from "./graph-context-menu";
@@ -44,8 +44,11 @@ import type {
   ExecutionFlows,
   CommunitySummaryItem,
 } from "@repowise-dev/types/graph";
-
-// ---- Node/Edge types ----
+import { SigmaCanvas, type SigmaCanvasHandle } from "./sigma/sigma-canvas";
+import {
+  fileGraphToGraphology,
+  moduleGraphToGraphology,
+} from "./sigma/graphology-adapter";
 
 const nodeTypes = {
   moduleGroup: ModuleGroupNode,
@@ -56,52 +59,26 @@ const edgeTypes = {
   dependency: DependencyEdge,
 };
 
-// ---- Props ----
-
 export interface GraphFlowProps {
-  /** Top-level module rollup; only fetched/needed for the module view at root. */
   moduleGraph: ModuleGraph | undefined;
   isLoadingModuleGraph: boolean;
-
-  /** Full file-level graph; needed for drill-down and the "full" view. */
   fullGraph: GraphExport | undefined;
   isLoadingFullGraph: boolean;
-
-  /** Architecture view graph. */
   architectureGraph: GraphExport | undefined;
   isLoadingArchitectureGraph: boolean;
-
-  /** Dead-code view graph. */
   deadCodeGraph: GraphExport | undefined;
   isLoadingDeadCodeGraph: boolean;
-
-  /** Hot-files view graph. */
   hotFilesGraph: GraphExport | undefined;
   isLoadingHotFilesGraph: boolean;
-
-  /** Community list — used for legend labels and detail panel lookup. */
   communities?: CommunitySummaryItem[];
-
-  /** Execution-flows data — used for the side panel and trace highlighting. */
   executionFlows?: ExecutionFlows;
-
-  /**
-   * Called when a view-mode change requires the consumer to (re)load
-   * datasets that aren't already supplied. The shell does NOT fetch — the
-   * wrapper observes this and triggers SWR / mutate as needed.
-   */
+  initialViewMode?: ViewMode;
+  initialSelectedNode?: string | null;
   onViewModeChange?: (mode: ViewMode) => void;
-  /** Same idea for drill-down. The shell exposes the current module path. */
   onModulePathChange?: (path: string[]) => void;
-
-  /** Node-level interactions surfaced to the consumer. */
+  onExpandedModulesChange?: (expanded: Set<string>) => void;
   onNodeClick?: (nodeId: string, nodeType: string) => void | Promise<void>;
   onNodeViewDocs?: (nodeId: string) => void;
-
-  /**
-   * Render the path-finder sub-panel. The shell only decides when to mount
-   * it and provides path-finder context (initial from/to, callbacks).
-   */
   renderPathFinder?: (props: {
     initialFrom: string;
     initialTo: string;
@@ -109,18 +86,11 @@ export interface GraphFlowProps {
     onClear: () => void;
     onClose: () => void;
   }) => ReactNode;
-
-  /**
-   * Render the community detail panel. The shell only owns the
-   * `communityId` selection state.
-   */
   renderCommunityPanel?: (props: {
     communityId: number;
     onClose: () => void;
   }) => ReactNode;
 }
-
-// ---- Inner component (needs ReactFlowProvider) ----
 
 function GraphFlowInner(props: GraphFlowProps) {
   const {
@@ -136,8 +106,11 @@ function GraphFlowInner(props: GraphFlowProps) {
     isLoadingHotFilesGraph,
     communities,
     executionFlows,
+    initialViewMode,
+    initialSelectedNode,
     onViewModeChange,
     onModulePathChange,
+    onExpandedModulesChange,
     onNodeClick,
     onNodeViewDocs,
     renderPathFinder,
@@ -145,9 +118,10 @@ function GraphFlowInner(props: GraphFlowProps) {
   } = props;
 
   const reactFlow = useReactFlow();
+  const sigmaRef = useRef<SigmaCanvasHandle>(null);
 
-  // State — read initial colorMode from URL if present
-  const [viewMode, setViewMode] = useState<ViewMode>("module");
+  // ---- Core state ----
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode ?? "module");
   const [colorMode, setColorMode] = useState<ColorMode>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -156,20 +130,41 @@ function GraphFlowInner(props: GraphFlowProps) {
     }
     return "language";
   });
-  const [hideTests, setHideTests] = useState(false);
   const [highlightedPath, setHighlightedPath] = useState<Set<string>>(new Set());
   const [highlightedEdges, setHighlightedEdges] = useState<Set<string>>(new Set());
   const [showPathFinder, setShowPathFinder] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("force");
+  const [graphTheme, setGraphTheme] = useState<GraphTheme>("light");
 
-  // Drill-down: stack of module prefixes. e.g. ["packages", "packages/web"]
+  // Signal overlays (replaces separate view modes for dead/hot/arch)
+  const [activeSignals, setActiveSignals] = useState<Set<Signal>>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const vm = params.get("viewMode");
+      if (vm === "dead") return new Set<Signal>(["dead"]);
+      if (vm === "hotfiles") return new Set<Signal>(["hot"]);
+      if (vm === "unified") return new Set<Signal>(["dead", "hot"]);
+    }
+    return new Set<Signal>();
+  });
+  const hideTests = activeSignals.has("hideTests");
+
+  // Expand/collapse modules (replaces drill-down for most use cases)
+  const { expandedModules, toggleModule, collapseAll } = useExpandedModules();
+  const hasExpandedModules = expandedModules.size > 0;
+
+  // Legacy drill-down (breadcrumb nav, kept for deep-dive via context menu)
   const [modulePath, setModulePath] = useState<string[]>([]);
   const currentPrefix = modulePath.length > 0 ? (modulePath[modulePath.length - 1] ?? "") : "";
   const isDrilledDown = modulePath.length > 0;
 
-  // Notify consumer of module-path changes (so it can fetch full graph etc.)
   useEffect(() => {
     onModulePathChange?.(modulePath);
   }, [modulePath, onModulePathChange]);
+
+  useEffect(() => {
+    onExpandedModulesChange?.(expandedModules);
+  }, [expandedModules, onExpandedModulesChange]);
 
   // Context menu
   const [ctxMenu, setCtxMenu] = useState<{
@@ -180,35 +175,29 @@ function GraphFlowInner(props: GraphFlowProps) {
   const [pathFrom, setPathFrom] = useState("");
   const [pathTo, setPathTo] = useState("");
 
-  // Hover & selection tracking
+  // Hover & selection
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [selectedNodeScreen, setSelectedNodeScreen] = useState<{ x: number; y: number } | null>(null);
 
-  // Graph search
+  // Search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDimmedNodes, setSearchDimmedNodes] = useState<Set<string> | null>(null);
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [searchResultIndex, setSearchResultIndex] = useState(0);
 
-  // Execution flow highlighting
+  // Execution flows
   const [activeFlowIdx, setActiveFlowIdx] = useState<number | null>(null);
   const [showFlows, setShowFlows] = useState(false);
 
-  // Community panel selection
+  // Community panel & filtering
   const [communityPanelId, setCommunityPanelId] = useState<number | null>(null);
-
-  // Community filtering
   const [activeCommunities, setActiveCommunities] = useState<Set<number> | null>(null);
 
-  // Layout mode & graph theme
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>("hierarchical");
-  const [graphTheme, setGraphTheme] = useState<GraphTheme>("light");
-  const isUnified = viewMode === "unified";
-  const effectiveForce = layoutMode === "force" && !isUnified;
-
-  // ---- Data selection (consumer supplies the data; shell picks the right slice) ----
+  // ---- Derived state ----
   const isModuleView = viewMode === "module";
+  const isUnified = viewMode === "unified";
+  const isSigmaMode = layoutMode === "sigma";
+  const effectiveForce = layoutMode === "force" && !isUnified;
 
   const communityLabels = useMemo(() => {
     if (!communities) return undefined;
@@ -217,15 +206,13 @@ function GraphFlowInner(props: GraphFlowProps) {
     return m;
   }, [communities]);
 
-  // ---- Derived data ----
-
-  // When drilled down, re-group nodes as sub-modules at the current prefix
+  // Drill-down data
   const drillDownData = useMemo(() => {
     if (!isDrilledDown || !fullGraph) return null;
     return groupNodesAsModules(fullGraph.nodes, fullGraph.links, currentPrefix);
   }, [isDrilledDown, fullGraph, currentPrefix]);
 
-  // File-level graph data — only for non-module views
+  // File-level graph data for non-module views
   const fileGraphData = useMemo(() => {
     switch (viewMode) {
       case "full":
@@ -248,8 +235,20 @@ function GraphFlowInner(props: GraphFlowProps) {
     }
   }, [viewMode, fullGraph, architectureGraph, deadCodeGraph, hotFilesGraph]);
 
-  // ---- Layout selection ----
-  const moduleLayoutInput = useMemo(() => {
+  // ---- Layout: Module force (Phase 3A) ----
+  const moduleForceInput = useMemo(() => {
+    if (!effectiveForce || !isModuleView || isDrilledDown) return { nodes: undefined, edges: undefined };
+    return { nodes: moduleGraph?.nodes, edges: moduleGraph?.edges };
+  }, [effectiveForce, isModuleView, isDrilledDown, moduleGraph]);
+
+  const {
+    nodes: moduleForceNodes,
+    edges: moduleForceEdges,
+    isLayouting: moduleForceLayouting,
+  } = useModuleForceLayout(moduleForceInput.nodes, moduleForceInput.edges);
+
+  // ---- Layout: Module ELK (fallback for hierarchical mode) ----
+  const moduleElkInput = useMemo(() => {
     if (effectiveForce || !isModuleView) return { nodes: undefined, edges: undefined, fileEntries: undefined };
     if (!isDrilledDown) {
       return { nodes: moduleGraph?.nodes, edges: moduleGraph?.edges, fileEntries: undefined };
@@ -262,59 +261,47 @@ function GraphFlowInner(props: GraphFlowProps) {
   }, [effectiveForce, isModuleView, isDrilledDown, moduleGraph, drillDownData]);
 
   const {
-    nodes: moduleNodes,
-    edges: moduleEdges,
-    isLayouting: moduleLayouting,
-  } = useModuleElkLayout(moduleLayoutInput.nodes, moduleLayoutInput.edges, moduleLayoutInput.fileEntries);
+    nodes: moduleElkNodes,
+    edges: moduleElkEdges,
+    isLayouting: moduleElkLayouting,
+  } = useModuleElkLayout(moduleElkInput.nodes, moduleElkInput.edges, moduleElkInput.fileEntries);
+
+  // ---- Layout: File-level force (for non-module force views) ----
+  const fileForceInput = useMemo(() => {
+    if (!effectiveForce || isModuleView) return { nodes: undefined, edges: undefined };
+    return { nodes: fileGraphData?.nodes, edges: fileGraphData?.links };
+  }, [effectiveForce, isModuleView, fileGraphData]);
 
   const {
-    nodes: fileNodes,
-    edges: fileEdges,
-    isLayouting: fileLayouting,
+    nodes: fileForceNodes,
+    edges: fileForceEdges,
+    isLayouting: fileForceLayouting,
+  } = useForceLayout(fileForceInput.nodes, fileForceInput.edges);
+
+  // ---- Layout: File-level ELK (for non-module hierarchical views) ----
+  const {
+    nodes: fileElkNodes,
+    edges: fileElkEdges,
+    isLayouting: fileElkLayouting,
   } = useFileElkLayout(
     !effectiveForce && !isModuleView ? fileGraphData?.nodes : undefined,
     !effectiveForce && !isModuleView ? fileGraphData?.links : undefined,
   );
 
-  // Force layout
-  const [forceNodes, setForceNodes] = useState<Node[]>([]);
-  const [forceEdges, setForceEdges] = useState<Edge[]>([]);
-  const [forceLayouting, setForceLayouting] = useState(false);
-  const forceCacheKey = useRef("");
-
-  const forceGraphData = useMemo(() => {
-    if (!effectiveForce) return undefined;
-    if (isModuleView) return fullGraph ? { nodes: fullGraph.nodes, links: fullGraph.links } : undefined;
-    return fileGraphData;
-  }, [effectiveForce, isModuleView, fullGraph, fileGraphData]);
-
-  useEffect(() => {
-    const nodes = forceGraphData?.nodes;
-    const links = forceGraphData?.links;
-    if (!nodes || !links || nodes.length === 0) {
-      setForceNodes([]);
-      setForceEdges([]);
-      forceCacheKey.current = "";
-      return;
+  // ---- Select active layout output ----
+  const currentNodes = useMemo(() => {
+    if (effectiveForce) {
+      return isModuleView ? moduleForceNodes : fileForceNodes;
     }
-    const key = `force:${nodes.length}:${links.length}:${nodes[0]?.node_id}`;
-    if (key === forceCacheKey.current) return;
-    forceCacheKey.current = key;
+    return isModuleView ? moduleElkNodes : fileElkNodes;
+  }, [effectiveForce, isModuleView, moduleForceNodes, fileForceNodes, moduleElkNodes, fileElkNodes]);
 
-    let cancelled = false;
-    setForceLayouting(true);
-    Promise.resolve().then(() => {
-      if (cancelled) return;
-      const result = computeForceLayout(nodes, links);
-      setForceNodes(result.nodes);
-      setForceEdges(result.edges);
-      setForceLayouting(false);
-    });
-    return () => { cancelled = true; };
-  }, [forceGraphData]);
-
-  const currentNodes = effectiveForce ? forceNodes : (isModuleView ? moduleNodes : fileNodes);
-  const currentEdges = effectiveForce ? forceEdges : (isModuleView ? moduleEdges : fileEdges);
+  const currentEdges = useMemo(() => {
+    if (effectiveForce) {
+      return isModuleView ? moduleForceEdges : fileForceEdges;
+    }
+    return isModuleView ? moduleElkEdges : fileElkEdges;
+  }, [effectiveForce, isModuleView, moduleForceEdges, fileForceEdges, moduleElkEdges, fileElkEdges]);
 
   // Filter hidden tests
   const filteredNodes = useMemo(() => {
@@ -339,35 +326,44 @@ function GraphFlowInner(props: GraphFlowProps) {
     };
   }, [currentNodes]);
 
-  // Data for inspection panel — map of node ID → FileNodeData, sorted pageranks/betweenness
-  const { allNodeDataMap, sortedPageranks, sortedBetweenness } = useMemo(() => {
-    const map = new Map<string, FileNodeData>();
+  // Node data map for inspection panel (supports both file and module nodes)
+  const { allNodeDataMap, allModuleDataMap, sortedPageranks, sortedBetweenness } = useMemo(() => {
+    const fileMap = new Map<string, FileNodeData>();
+    const modMap = new Map<string, ModuleNodeData>();
     const prs: number[] = [];
     const bts: number[] = [];
     for (const n of currentNodes) {
       if (n.type === "fileNode") {
         const d = n.data as FileNodeData;
-        map.set(n.id, d);
+        fileMap.set(n.id, d);
         prs.push(d.pagerank);
         bts.push(d.betweenness);
+      } else if (n.type === "moduleGroup") {
+        modMap.set(n.id, n.data as ModuleNodeData);
       }
     }
     prs.sort((a, b) => a - b);
     bts.sort((a, b) => a - b);
-    return { allNodeDataMap: map, sortedPageranks: prs, sortedBetweenness: bts };
+    return { allNodeDataMap: fileMap, allModuleDataMap: modMap, sortedPageranks: prs, sortedBetweenness: bts };
   }, [currentNodes]);
 
+  // Loading / layouting states
   const isLoading =
-    (effectiveForce && isModuleView) ? isLoadingFullGraph :
+    (effectiveForce && isModuleView) ? isLoadingModuleGraph :
     (isModuleView && !isDrilledDown) ? isLoadingModuleGraph :
     isDrilledDown ? isLoadingFullGraph :
     viewMode === "full" || viewMode === "unified" ? isLoadingFullGraph :
     viewMode === "architecture" ? isLoadingArchitectureGraph :
     viewMode === "dead" ? isLoadingDeadCodeGraph :
     viewMode === "hotfiles" ? isLoadingHotFilesGraph : false;
-  const isLayouting = effectiveForce ? forceLayouting : (isModuleView ? moduleLayouting : fileLayouting);
 
-  // Compute connected nodes/edges for hover highlighting
+  const isLayouting = isSigmaMode
+    ? false
+    : effectiveForce
+      ? (isModuleView ? moduleForceLayouting : fileForceLayouting)
+      : (isModuleView ? moduleElkLayouting : fileElkLayouting);
+
+  // Hover highlighting
   const { connectedNodeIds, connectedEdgeIds } = useMemo(() => {
     if (!hoveredNodeId) return { connectedNodeIds: new Set<string>(), connectedEdgeIds: new Set<string>() };
     const nodeIds = new Set<string>([hoveredNodeId]);
@@ -382,7 +378,7 @@ function GraphFlowInner(props: GraphFlowProps) {
     return { connectedNodeIds: nodeIds, connectedEdgeIds: edgeIds };
   }, [hoveredNodeId, currentEdges]);
 
-  // Community dimming: compute set of node IDs whose community is filtered out
+  // Community dimming
   const communityDimmedNodes = useMemo(() => {
     if (!activeCommunities) return null;
     const dimmed = new Set<string>();
@@ -395,7 +391,7 @@ function GraphFlowInner(props: GraphFlowProps) {
     return dimmed.size > 0 ? dimmed : null;
   }, [activeCommunities, filteredNodes]);
 
-  // Hotspot / dead-code node sets (for unified view badges)
+  // Signal overlay node sets
   const hotNodeIds = useMemo(() => {
     if (!hotFilesGraph) return new Set<string>();
     return new Set(hotFilesGraph.nodes.map((n) => n.node_id));
@@ -406,25 +402,62 @@ function GraphFlowInner(props: GraphFlowProps) {
     return new Set(deadCodeGraph.nodes.map((n) => n.node_id));
   }, [deadCodeGraph]);
 
-  // Tag nodes with isHotspot/isDead for unified view
-  const displayNodes = useMemo(() => {
-    if (!isUnified) return filteredNodes;
-    return filteredNodes.map((n) => {
-      if (n.type !== "fileNode") return n;
-      const isHotspot = hotNodeIds.has(n.id);
-      const isDead = deadNodeIds.has(n.id);
-      if (!isHotspot && !isDead) return n;
-      return { ...n, data: { ...(n.data as FileNodeData), isHotspot, isDead } };
-    });
-  }, [isUnified, filteredNodes, hotNodeIds, deadNodeIds]);
+  const hasDeadSignal = activeSignals.has("dead");
+  const hasHotSignal = activeSignals.has("hot");
 
-  // Fuse search index over visible nodes
+  // Tag nodes with signal badges
+  const displayNodes = useMemo(() => {
+    const needsSignalBadges = hasDeadSignal || hasHotSignal || isUnified;
+    if (!needsSignalBadges) return filteredNodes;
+    return filteredNodes.map((n) => {
+      if (n.type === "fileNode") {
+        const isHotspot = (hasHotSignal || isUnified) && hotNodeIds.has(n.id);
+        const isDead = (hasDeadSignal || isUnified) && deadNodeIds.has(n.id);
+        if (!isHotspot && !isDead) return n;
+        return { ...n, data: { ...(n.data as FileNodeData), isHotspot, isDead } };
+      }
+      if (n.type === "moduleGroup" && (hasDeadSignal || hasHotSignal)) {
+        const modData = n.data as ModuleNodeData;
+        const prefix = modData.fullPath + "/";
+        let deadCount = 0;
+        let hotCount = 0;
+        if (hasDeadSignal) for (const id of deadNodeIds) { if (id.startsWith(prefix) || id === modData.fullPath) deadCount++; }
+        if (hasHotSignal) for (const id of hotNodeIds) { if (id.startsWith(prefix) || id === modData.fullPath) hotCount++; }
+        if (deadCount === 0 && hotCount === 0) return n;
+        return { ...n, data: { ...modData, deadCount, hotCount } };
+      }
+      return n;
+    });
+  }, [filteredNodes, hasDeadSignal, hasHotSignal, isUnified, hotNodeIds, deadNodeIds]);
+
+  // Build Graphology graph for Sigma mode
+  const sigmaGraph = useMemo(() => {
+    if (!isSigmaMode) return null;
+
+    if (isModuleView) {
+      if (!moduleGraph) return null;
+      return moduleGraphToGraphology(moduleGraph, communities ? { communities } : {});
+    }
+
+    const graphData = fileGraphData;
+    if (!graphData) return null;
+
+    const signals: { hotNodeIds?: Set<string>; deadNodeIds?: Set<string> } = {};
+    if (hasHotSignal || isUnified) signals.hotNodeIds = hotNodeIds;
+    if (hasDeadSignal || isUnified) signals.deadNodeIds = deadNodeIds;
+
+    return fileGraphToGraphology(
+      { nodes: graphData.nodes, links: graphData.links },
+      { signals },
+    );
+  }, [isSigmaMode, isModuleView, moduleGraph, communities, fileGraphData, hasHotSignal, hasDeadSignal, isUnified, hotNodeIds, deadNodeIds]);
+
+  // Search
   const fuseIndex = useMemo(() => {
     const items = filteredNodes.map((n) => ({ id: n.id, label: (n.data as { label?: string }).label ?? n.id }));
     return new Fuse(items, { keys: ["id", "label"], threshold: 0.4 });
   }, [filteredNodes]);
 
-  // Search: compute dimmed set and result list when query is active
   useEffect(() => {
     if (!searchQuery || searchQuery.length < 2) {
       setSearchDimmedNodes(null);
@@ -512,19 +545,16 @@ function GraphFlowInner(props: GraphFlowProps) {
       graphTheme,
       maxPagerank,
       medianPagerank,
+      expandedModules,
+      activeSignals,
     }),
-    [highlightedPath, highlightedEdges, colorMode, viewMode, hoveredNodeId, connectedNodeIds, connectedEdgeIds, selectedNodeId, searchDimmedNodes, communityDimmedNodes, layoutMode, graphTheme, maxPagerank, medianPagerank],
+    [highlightedPath, highlightedEdges, colorMode, viewMode, hoveredNodeId, connectedNodeIds, connectedEdgeIds, selectedNodeId, searchDimmedNodes, communityDimmedNodes, layoutMode, graphTheme, maxPagerank, medianPagerank, expandedModules, activeSignals],
   );
 
   // ---- Handlers ----
 
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (event, node) => {
-      if (node.type === "moduleGroup" && isModuleView) {
-        setModulePath((prev) => [...prev, node.id]);
-        setSelectedNodeId(null);
-        return;
-      }
+    (_event, node) => {
       if (colorMode === "community" && node.type === "fileNode") {
         const nodeData = node.data as FileNodeData;
         if (nodeData?.communityId !== undefined) {
@@ -534,17 +564,11 @@ function GraphFlowInner(props: GraphFlowProps) {
 
       if (selectedNodeId === node.id) {
         setSelectedNodeId(null);
-        setSelectedNodeScreen(null);
-      } else if (node.type === "fileNode") {
-        setSelectedNodeId(node.id);
-        setSelectedNodeScreen(null);
       } else {
-        const mEvent = event as unknown as React.MouseEvent;
         setSelectedNodeId(node.id);
-        setSelectedNodeScreen({ x: mEvent.clientX, y: mEvent.clientY });
       }
     },
-    [isModuleView, selectedNodeId, colorMode],
+    [selectedNodeId, colorMode],
   );
 
   const handleNodeMouseEnter: NodeMouseHandler = useCallback(
@@ -559,11 +583,13 @@ function GraphFlowInner(props: GraphFlowProps) {
 
   const handleNodeDoubleClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      if (node.type !== "moduleGroup") {
+      if (node.type === "moduleGroup") {
+        toggleModule(node.id);
+      } else {
         onNodeViewDocs?.(node.id);
       }
     },
-    [onNodeViewDocs],
+    [onNodeViewDocs, toggleModule],
   );
 
   const handleNodeContextMenu: NodeMouseHandler = useCallback(
@@ -574,6 +600,29 @@ function GraphFlowInner(props: GraphFlowProps) {
         y: (event as unknown as React.MouseEvent).clientY,
         nodeId: node.id,
         nodeType: node.type ?? "fileNode",
+      });
+    },
+    [],
+  );
+
+  const handleSigmaNodeClick = useCallback(
+    (nodeId: string, _nodeType: string) => {
+      if (selectedNodeId === nodeId) {
+        setSelectedNodeId(null);
+      } else {
+        setSelectedNodeId(nodeId);
+      }
+    },
+    [selectedNodeId],
+  );
+
+  const handleSigmaNodeContextMenu = useCallback(
+    (event: MouseEvent, nodeId: string, nodeType: string) => {
+      setCtxMenu({
+        x: event.clientX,
+        y: event.clientY,
+        nodeId,
+        nodeType: nodeType === "module" ? "moduleGroup" : "fileNode",
       });
     },
     [],
@@ -625,8 +674,12 @@ function GraphFlowInner(props: GraphFlowProps) {
   }, []);
 
   const handleFitView = useCallback(() => {
+    if (isSigmaMode) {
+      sigmaRef.current?.fitView();
+      return;
+    }
     reactFlow.fitView({ padding: 0.15, duration: 400 });
-  }, [reactFlow]);
+  }, [reactFlow, isSigmaMode]);
 
   const handleViewChange = useCallback((v: ViewMode) => {
     setViewMode(v);
@@ -634,28 +687,48 @@ function GraphFlowInner(props: GraphFlowProps) {
     setHighlightedPath(new Set());
     setHighlightedEdges(new Set());
     setSelectedNodeId(null);
-    setSelectedNodeScreen(null);
     onViewModeChange?.(v);
   }, [onViewModeChange]);
 
   const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
     setLayoutMode(mode);
-    if (mode === "force" && (viewMode === "module" || viewMode === "unified")) {
-      handleViewChange("full");
-    }
     hasFocusedRef.current = false;
-  }, [viewMode, handleViewChange]);
+  }, []);
 
   const handleGraphThemeChange = useCallback((theme: GraphTheme) => {
     setGraphTheme(theme);
   }, []);
 
+  const handleSignalToggle = useCallback((signal: Signal) => {
+    setActiveSignals((prev) => {
+      const next = new Set(prev);
+      if (next.has(signal)) next.delete(signal);
+      else next.add(signal);
+      return next;
+    });
+  }, []);
+
   const panToNode = useCallback((nodeId: string) => {
+    if (isSigmaMode) {
+      sigmaRef.current?.focusNode(nodeId);
+      return;
+    }
     const rfNode = reactFlow.getNode(nodeId);
     if (rfNode) {
       reactFlow.fitView({ nodes: [rfNode], padding: 1.5, duration: 400, maxZoom: 1.5 });
     }
-  }, [reactFlow]);
+  }, [reactFlow, isSigmaMode]);
+
+  const initialNodeApplied = useRef(false);
+  useEffect(() => {
+    if (initialNodeApplied.current || !initialSelectedNode) return;
+    const rfNode = reactFlow.getNode(initialSelectedNode);
+    if (rfNode) {
+      initialNodeApplied.current = true;
+      setSelectedNodeId(initialSelectedNode);
+      setTimeout(() => panToNode(initialSelectedNode), 300);
+    }
+  }, [initialSelectedNode, reactFlow, panToNode]);
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (searchResults.length === 0) {
@@ -717,7 +790,6 @@ function GraphFlowInner(props: GraphFlowProps) {
 
   const handleInspectNavigate = useCallback((nodeId: string) => {
     setSelectedNodeId(nodeId);
-    setSelectedNodeScreen(null);
     panToNode(nodeId);
   }, [panToNode]);
 
@@ -727,6 +799,12 @@ function GraphFlowInner(props: GraphFlowProps) {
       setShowPathFinder(true);
     }
   }, [selectedNodeId]);
+
+  const handleInspectExpandModule = useCallback(() => {
+    if (selectedNodeId) {
+      toggleModule(selectedNodeId);
+    }
+  }, [selectedNodeId, toggleModule]);
 
   // Breadcrumb
   const handleBreadcrumbClick = useCallback((index: number) => {
@@ -764,7 +842,7 @@ function GraphFlowInner(props: GraphFlowProps) {
     setCtxMenu(null);
   }, [ctxMenu]);
 
-  // After layout completes, zoom to entry-point nodes for a readable first view
+  // Auto-fit after layout completes
   const hasFocusedRef = useRef(false);
 
   useEffect(() => {
@@ -772,31 +850,20 @@ function GraphFlowInner(props: GraphFlowProps) {
     hasFocusedRef.current = true;
 
     const timer = setTimeout(() => {
-      switch (viewMode) {
-        case "dead":
-        case "hotfiles":
-        case "architecture": {
-          reactFlow.fitView({ padding: 0.3, duration: 600, maxZoom: 1.5 });
-          return;
-        }
-        case "module": {
-          reactFlow.fitView({ padding: 0.2, duration: 600, maxZoom: 1 });
-          return;
-        }
-        default:
-          break;
+      if (isModuleView) {
+        reactFlow.fitView({ padding: 0.3, duration: 600, maxZoom: 1.2 });
+      } else {
+        reactFlow.fitView({ padding: 0.15, duration: 600, maxZoom: 0.6 });
       }
-      reactFlow.fitView({ padding: 0.15, duration: 600, maxZoom: 0.6 });
     }, 100);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLayouting, filteredNodes, reactFlow]);
 
-  // Reset focus flag when view mode changes
   useEffect(() => {
     hasFocusedRef.current = false;
-  }, [viewMode]);
+  }, [viewMode, layoutMode]);
 
   const minimapNodeColor = useCallback(
     (node: Node) => {
@@ -825,7 +892,25 @@ function GraphFlowInner(props: GraphFlowProps) {
           </div>
         )}
 
-        {displayNodes.length === 0 && !isLayouting ? (
+        {isSigmaMode ? (
+          <SigmaCanvas
+            ref={sigmaRef}
+            graph={sigmaGraph}
+            selectedNodeId={selectedNodeId}
+            hoveredNodeId={hoveredNodeId}
+            highlightedPath={highlightedPath}
+            highlightedEdges={highlightedEdges}
+            searchDimmedNodes={searchDimmedNodes}
+            communityDimmedNodes={communityDimmedNodes}
+            colorMode={colorMode}
+            activeSignals={activeSignals}
+            graphTheme={graphTheme}
+            onNodeClick={handleSigmaNodeClick}
+            onNodeHover={setHoveredNodeId}
+            onNodeContextMenu={handleSigmaNodeContextMenu}
+            onStageClick={() => setSelectedNodeId(null)}
+          />
+        ) : displayNodes.length === 0 && !isLayouting ? (
           <div className="flex items-center justify-center h-full">
             <EmptyState
               title="No graph data"
@@ -833,45 +918,45 @@ function GraphFlowInner(props: GraphFlowProps) {
             />
           </div>
         ) : (
-        <ReactFlow
-          nodes={displayNodes}
-          edges={currentEdges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodeClick={handleNodeClick}
-          onNodeDoubleClick={handleNodeDoubleClick}
-          onNodeContextMenu={handleNodeContextMenu}
-          onNodeMouseEnter={handleNodeMouseEnter}
-          onNodeMouseLeave={handleNodeMouseLeave}
-          onPaneClick={() => { setSelectedNodeId(null); setSelectedNodeScreen(null); }}
-          fitView
-          fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
-          minZoom={0.05}
-          maxZoom={4}
-          proOptions={{ hideAttribution: true }}
-          className="!bg-transparent"
-          nodesDraggable={effectiveForce}
-          defaultEdgeOptions={{ type: "dependency" }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={16} size={0.5} color={graphTheme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.03)"} />
-          <Controls
-            showInteractive={false}
-            className={graphTheme === "dark"
-              ? "!border-white/10 !bg-[#1a1a2e] !shadow-lg !shadow-black/40 [&>button]:!border-white/10 [&>button]:!bg-[#1a1a2e] [&>button]:!text-white/60 [&>button:hover]:!bg-[#252540] [&>button:hover]:!text-white"
-              : "!border-[var(--color-border-default)] !bg-[var(--color-bg-elevated)] !shadow-lg !shadow-black/20 [&>button]:!border-[var(--color-border-default)] [&>button]:!bg-[var(--color-bg-elevated)] [&>button]:!text-[var(--color-text-secondary)] [&>button:hover]:!bg-[var(--color-bg-overlay)] [&>button:hover]:!text-[var(--color-text-primary)]"
-            }
-          />
-          <MiniMap
-            nodeColor={minimapNodeColor}
-            maskColor={graphTheme === "dark" ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.6)"}
-            className={graphTheme === "dark"
-              ? "!bg-[#1a1a2e] !border-white/10 !shadow-lg !shadow-black/40 !rounded-lg !hidden sm:!block"
-              : "!bg-[var(--color-bg-surface)] !border-[var(--color-border-default)] !shadow-lg !shadow-black/20 !rounded-lg !hidden sm:!block"
-            }
-            pannable
-            zoomable
-          />
-        </ReactFlow>
+          <ReactFlow
+            nodes={displayNodes}
+            edges={currentEdges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
+            onNodeContextMenu={handleNodeContextMenu}
+            onNodeMouseEnter={handleNodeMouseEnter}
+            onNodeMouseLeave={handleNodeMouseLeave}
+            onPaneClick={() => { setSelectedNodeId(null); }}
+            fitView
+            fitViewOptions={{ padding: 0.3, maxZoom: 1.2 }}
+            minZoom={0.05}
+            maxZoom={4}
+            proOptions={{ hideAttribution: true }}
+            className="!bg-transparent"
+            nodesDraggable={effectiveForce}
+            defaultEdgeOptions={{ type: "dependency" }}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={16} size={0.5} color={graphTheme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.03)"} />
+            <Controls
+              showInteractive={false}
+              className={graphTheme === "dark"
+                ? "!border-white/10 !bg-[#1a1a2e] !shadow-lg !shadow-black/40 [&>button]:!border-white/10 [&>button]:!bg-[#1a1a2e] [&>button]:!text-white/60 [&>button:hover]:!bg-[#252540] [&>button:hover]:!text-white"
+                : "!border-[var(--color-border-default)] !bg-[var(--color-bg-elevated)] !shadow-lg !shadow-black/20 [&>button]:!border-[var(--color-border-default)] [&>button]:!bg-[var(--color-bg-elevated)] [&>button]:!text-[var(--color-text-secondary)] [&>button:hover]:!bg-[var(--color-bg-overlay)] [&>button:hover]:!text-[var(--color-text-primary)]"
+              }
+            />
+            <MiniMap
+              nodeColor={minimapNodeColor}
+              maskColor={graphTheme === "dark" ? "rgba(0, 0, 0, 0.7)" : "rgba(0, 0, 0, 0.6)"}
+              className={graphTheme === "dark"
+                ? "!bg-[#1a1a2e] !border-white/10 !shadow-lg !shadow-black/40 !rounded-lg !hidden sm:!block"
+                : "!bg-[var(--color-bg-surface)] !border-[var(--color-border-default)] !shadow-lg !shadow-black/20 !rounded-lg !hidden sm:!block"
+              }
+              pannable
+              zoomable
+            />
+          </ReactFlow>
         )}
 
         {/* Breadcrumb — shown when drilled into a module */}
@@ -917,7 +1002,7 @@ function GraphFlowInner(props: GraphFlowProps) {
             colorMode={colorMode}
             onColorModeChange={setColorMode}
             hideTests={hideTests}
-            onHideTestsChange={setHideTests}
+            onHideTestsChange={(v) => handleSignalToggle("hideTests")}
             onFitView={handleFitView}
             showPathFinder={showPathFinder}
             onTogglePathFinder={() => setShowPathFinder((s) => !s)}
@@ -935,7 +1020,7 @@ function GraphFlowInner(props: GraphFlowProps) {
           />
         </div>
 
-        {/* Path Finder — rendered via consumer slot (data-coupled) */}
+        {/* Path Finder */}
         {showPathFinder && renderPathFinder && (
           <div className="absolute top-14 right-3 z-10">
             {renderPathFinder({
@@ -1015,16 +1100,18 @@ function GraphFlowInner(props: GraphFlowProps) {
           />
         )}
 
-        {/* Community detail panel — rendered via consumer slot */}
+        {/* Community detail panel */}
         {communityPanelId !== null && renderCommunityPanel &&
           renderCommunityPanel({
             communityId: communityPanelId,
             onClose: () => setCommunityPanelId(null),
           })}
 
-        {/* Node inspection panel — file nodes only, shown when no screen coords (keyboard nav or neighbor click) */}
-        {selectedNodeId && !selectedNodeScreen && (() => {
-          const nd = allNodeDataMap.get(selectedNodeId);
+        {/* Inspection panel — works for both file and module nodes */}
+        {selectedNodeId && (() => {
+          const fileNd = allNodeDataMap.get(selectedNodeId);
+          const modNd = allModuleDataMap.get(selectedNodeId);
+          const nd = fileNd ?? modNd;
           if (!nd) return null;
           return (
             <GraphInspectionPanel
@@ -1034,36 +1121,12 @@ function GraphFlowInner(props: GraphFlowProps) {
               allNodes={allNodeDataMap}
               allPageranks={sortedPageranks}
               allBetweenness={sortedBetweenness}
-              communityLabel={communityLabels?.get(nd.communityId)}
-              onClose={() => { setSelectedNodeId(null); setSelectedNodeScreen(null); }}
+              communityLabel={fileNd ? communityLabels?.get(fileNd.communityId) : undefined}
+              onClose={() => { setSelectedNodeId(null); }}
               onNavigateToNode={handleInspectNavigate}
               onViewDocs={() => { onNodeViewDocs?.(selectedNodeId); }}
               onFindPath={handleInspectFindPath}
-            />
-          );
-        })()}
-
-        {/* Node detail tooltip */}
-        {selectedNodeId && selectedNodeScreen && (() => {
-          const rfNode = filteredNodes.find((n) => n.id === selectedNodeId);
-          if (!rfNode) return null;
-          const onExplore = rfNode.type === "moduleGroup" && isModuleView
-            ? () => {
-                setModulePath((prev) => [...prev, selectedNodeId]);
-                setSelectedNodeId(null);
-                setSelectedNodeScreen(null);
-              }
-            : undefined;
-          return (
-            <GraphTooltip
-              nodeId={selectedNodeId}
-              nodeType={rfNode.type ?? "fileNode"}
-              data={rfNode.data as Record<string, unknown>}
-              x={selectedNodeScreen.x}
-              y={selectedNodeScreen.y}
-              onClose={() => { setSelectedNodeId(null); setSelectedNodeScreen(null); }}
-              onViewDocs={() => { onNodeViewDocs?.(selectedNodeId); setSelectedNodeId(null); setSelectedNodeScreen(null); }}
-              {...(onExplore ? { onExplore } : {})}
+              onExpandModule={modNd ? handleInspectExpandModule : undefined}
             />
           );
         })()}
@@ -1071,8 +1134,6 @@ function GraphFlowInner(props: GraphFlowProps) {
     </GraphProvider>
   );
 }
-
-// ---- Public component ----
 
 export function GraphFlow(props: GraphFlowProps) {
   return (
