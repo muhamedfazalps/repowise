@@ -1,8 +1,12 @@
 import { LANGUAGE_COLORS, languageColor } from "../../lib/confidence";
-import { FORCE_COMMUNITY_PALETTE } from "../force-layout";
 
 // Re-export for convenience
-export { LANGUAGE_COLORS, languageColor, FORCE_COMMUNITY_PALETTE };
+export { LANGUAGE_COLORS, languageColor };
+
+export const FORCE_COMMUNITY_PALETTE = [
+  "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+  "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC",
+];
 
 // ---- Community palette (24 colors, matches graph-inspection-panel.tsx) ----
 

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   X,
   FileText,
+  Folder,
   Zap,
   FlaskConical,
   BookOpen,
@@ -16,8 +17,7 @@ import {
 import { ScrollArea } from "../ui/scroll-area";
 import { languageColor } from "../lib/confidence";
 import { formatNumber } from "../lib/format";
-import type { FileNodeData } from "./elk-layout";
-import type { Edge } from "@xyflow/react";
+import type { FileNodeData, ModuleNodeData, GraphEdge } from "./elk-layout";
 
 const COMMUNITY_COLORS = [
   "#6366f1", "#ec4899", "#10b981", "#f59e0b", "#3b82f6", "#a855f7",
@@ -35,8 +35,8 @@ interface NeighborInfo {
 
 export interface GraphInspectionPanelProps {
   nodeId: string;
-  data: FileNodeData;
-  edges: Edge[];
+  data: FileNodeData | ModuleNodeData;
+  edges: GraphEdge[];
   allNodes: Map<string, FileNodeData>;
   allPageranks: number[];
   allBetweenness: number[];
@@ -45,8 +45,13 @@ export interface GraphInspectionPanelProps {
   onNavigateToNode: (nodeId: string) => void;
   onViewDocs?: () => void;
   onViewSymbols?: () => void;
-  onFindPath?: () => void;
-  onShowEgoGraph?: () => void;
+  onFindPath?: (() => void) | undefined;
+  onShowEgoGraph?: (() => void) | undefined;
+  onExpandModule?: (() => void) | undefined;
+}
+
+function isModuleData(data: FileNodeData | ModuleNodeData): data is ModuleNodeData {
+  return "fileCount" in data && !("pagerank" in data && "betweenness" in data && "language" in data);
 }
 
 function percentileOf(value: number, sorted: number[]): number {
@@ -73,6 +78,7 @@ export function GraphInspectionPanel({
   onViewSymbols,
   onFindPath,
   onShowEgoGraph,
+  onExpandModule,
 }: GraphInspectionPanelProps) {
   const neighbors = useMemo(() => {
     const result: NeighborInfo[] = [];
@@ -101,10 +107,15 @@ export function GraphInspectionPanel({
     return result;
   }, [nodeId, edges, allNodes]);
 
+  const isMod = isModuleData(data);
   const inDegree = neighbors.filter((n) => n.direction === "importer").length;
   const outDegree = neighbors.filter((n) => n.direction === "import").length;
-  const pagerankPct = percentileOf(data.pagerank, allPageranks);
-  const betweennessPct = percentileOf(data.betweenness, allBetweenness);
+  const pagerankPct = !isMod ? percentileOf((data as FileNodeData).pagerank, allPageranks) : 0;
+  const betweennessPct = !isMod ? percentileOf((data as FileNodeData).betweenness, allBetweenness) : 0;
+
+  const headerIcon = isMod
+    ? <Folder className="w-4 h-4 text-[var(--color-text-secondary)] mt-0.5 shrink-0" />
+    : <FileText className="w-4 h-4 text-[var(--color-text-secondary)] mt-0.5 shrink-0" />;
 
   return (
     <div
@@ -112,7 +123,7 @@ export function GraphInspectionPanel({
     >
       {/* Header */}
       <div className="flex items-start gap-2 px-4 py-3 border-b border-[var(--color-border-default)]">
-        <FileText className="w-4 h-4 text-[var(--color-text-secondary)] mt-0.5 shrink-0" />
+        {headerIcon}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
             {nodeId.split("/").pop()}
@@ -131,91 +142,24 @@ export function GraphInspectionPanel({
 
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {/* Metadata */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Language</span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ background: languageColor(data.language) }} />
-                <span className="font-medium text-[var(--color-text-primary)] capitalize">{data.language}</span>
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Symbols</span>
-              <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
-                {formatNumber(data.symbolCount)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Pagerank</span>
-              <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
-                Top {100 - pagerankPct}%
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Betweenness</span>
-              <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
-                Top {100 - betweennessPct}%
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Community</span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ background: COMMUNITY_COLORS[data.communityId % COMMUNITY_COLORS.length] }}
-                />
-                <span className="font-medium text-[var(--color-text-primary)]">
-                  {communityLabel ?? `#${data.communityId}`}
-                </span>
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-tertiary)]">Degree</span>
-              <span className="font-medium text-[var(--color-text-primary)] tabular-nums flex items-center gap-2">
-                <span className="flex items-center gap-0.5" title="In-degree (importers)">
-                  <ArrowDownToLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{inDegree}
-                </span>
-                <span className="flex items-center gap-0.5" title="Out-degree (imports)">
-                  <ArrowUpFromLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{outDegree}
-                </span>
-              </span>
-            </div>
-
-            {/* Badges */}
-            <div className="flex items-center gap-1.5 pt-1 flex-wrap">
-              {data.isEntryPoint && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-accent-graph)]/10 text-[var(--color-accent-graph)] px-1.5 py-0.5 text-[10px] font-medium">
-                  <Zap className="w-2.5 h-2.5" /> Entry Point
-                </span>
-              )}
-              {data.isTest && (
-                <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 text-purple-400 px-1.5 py-0.5 text-[10px] font-medium">
-                  <FlaskConical className="w-2.5 h-2.5" /> Test
-                </span>
-              )}
-              {data.hasDoc ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-green-500/10 text-green-400 px-1.5 py-0.5 text-[10px] font-medium">
-                  <BookOpen className="w-2.5 h-2.5" /> Documented
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-md bg-slate-500/10 text-slate-400 px-1.5 py-0.5 text-[10px] font-medium">
-                  <BookOpen className="w-2.5 h-2.5" /> No docs
-                </span>
-              )}
-            </div>
-          </div>
+          {isMod ? (
+            <ModuleMetadata data={data as ModuleNodeData} inDegree={inDegree} outDegree={outDegree} />
+          ) : (
+            <FileMetadata
+              data={data as FileNodeData}
+              pagerankPct={pagerankPct}
+              betweennessPct={betweennessPct}
+              inDegree={inDegree}
+              outDegree={outDegree}
+              communityLabel={communityLabel}
+            />
+          )}
 
           {/* Neighbors */}
           {neighbors.length > 0 && (
             <div className="border-t border-[var(--color-border-default)] pt-3">
               <p className="text-[11px] font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2">
-                Neighbors ({neighbors.length})
+                {isMod ? "Connected Modules" : "Neighbors"} ({neighbors.length})
               </p>
               <div className="space-y-0.5 max-h-48 overflow-y-auto">
                 {neighbors.map((n) => (
@@ -246,6 +190,14 @@ export function GraphInspectionPanel({
 
       {/* Actions */}
       <div className="border-t border-[var(--color-border-default)] p-3 grid grid-cols-2 gap-2">
+        {isMod && onExpandModule && (
+          <button
+            onClick={onExpandModule}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-accent-graph)]/10 hover:bg-[var(--color-accent-graph)]/20 border border-[var(--color-accent-graph)]/30 px-2 py-1.5 text-[10px] font-medium text-[var(--color-accent-graph)] transition-colors col-span-2"
+          >
+            <Network className="w-3 h-3" /> Expand Module
+          </button>
+        )}
         {onViewDocs && (
           <button
             onClick={onViewDocs}
@@ -254,7 +206,7 @@ export function GraphInspectionPanel({
             <BookOpen className="w-3 h-3" /> View Docs
           </button>
         )}
-        {onViewSymbols && (
+        {!isMod && onViewSymbols && (
           <button
             onClick={onViewSymbols}
             className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-bg-inset)] hover:bg-[var(--color-bg-surface)] border border-[var(--color-border-default)] px-2 py-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -270,7 +222,7 @@ export function GraphInspectionPanel({
             <Route className="w-3 h-3" /> Find Path
           </button>
         )}
-        {onShowEgoGraph && (
+        {!isMod && onShowEgoGraph && (
           <button
             onClick={onShowEgoGraph}
             className="flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-bg-inset)] hover:bg-[var(--color-bg-surface)] border border-[var(--color-border-default)] px-2 py-1.5 text-[10px] font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -278,6 +230,160 @@ export function GraphInspectionPanel({
             <Network className="w-3 h-3" /> Ego Graph
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function FileMetadata({
+  data,
+  pagerankPct,
+  betweennessPct,
+  inDegree,
+  outDegree,
+  communityLabel,
+}: {
+  data: FileNodeData;
+  pagerankPct: number;
+  betweennessPct: number;
+  inDegree: number;
+  outDegree: number;
+  communityLabel?: string | undefined;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Language</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: languageColor(data.language) }} />
+          <span className="font-medium text-[var(--color-text-primary)] capitalize">{data.language}</span>
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Symbols</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          {formatNumber(data.symbolCount)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Pagerank</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          Top {100 - pagerankPct}%
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Betweenness</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          Top {100 - betweennessPct}%
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Community</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ background: COMMUNITY_COLORS[data.communityId % COMMUNITY_COLORS.length] }}
+          />
+          <span className="font-medium text-[var(--color-text-primary)]">
+            {communityLabel ?? `#${data.communityId}`}
+          </span>
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Degree</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums flex items-center gap-2">
+          <span className="flex items-center gap-0.5" title="In-degree (importers)">
+            <ArrowDownToLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{inDegree}
+          </span>
+          <span className="flex items-center gap-0.5" title="Out-degree (imports)">
+            <ArrowUpFromLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{outDegree}
+          </span>
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+        {data.isEntryPoint && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--color-accent-graph)]/10 text-[var(--color-accent-graph)] px-1.5 py-0.5 text-[10px] font-medium">
+            <Zap className="w-2.5 h-2.5" /> Entry Point
+          </span>
+        )}
+        {data.isTest && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 text-purple-400 px-1.5 py-0.5 text-[10px] font-medium">
+            <FlaskConical className="w-2.5 h-2.5" /> Test
+          </span>
+        )}
+        {data.hasDoc ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-green-500/10 text-green-400 px-1.5 py-0.5 text-[10px] font-medium">
+            <BookOpen className="w-2.5 h-2.5" /> Documented
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-md bg-slate-500/10 text-slate-400 px-1.5 py-0.5 text-[10px] font-medium">
+            <BookOpen className="w-2.5 h-2.5" /> No docs
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModuleMetadata({
+  data,
+  inDegree,
+  outDegree,
+}: {
+  data: ModuleNodeData;
+  inDegree: number;
+  outDegree: number;
+}) {
+  const docPct = Math.round((data.docCoveragePct ?? 0) * 100);
+  const docColor = docPct >= 70 ? "#22c55e" : docPct >= 30 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Files</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          {formatNumber(data.fileCount)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Symbols</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          {formatNumber(data.symbolCount)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Avg Pagerank</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+          {data.avgPagerank.toFixed(4)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Doc Coverage</span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: docColor }} />
+          <span className="font-medium text-[var(--color-text-primary)] tabular-nums">{docPct}%</span>
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-text-tertiary)]">Connections</span>
+        <span className="font-medium text-[var(--color-text-primary)] tabular-nums flex items-center gap-2">
+          <span className="flex items-center gap-0.5" title="Depends on this">
+            <ArrowDownToLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{inDegree}
+          </span>
+          <span className="flex items-center gap-0.5" title="This depends on">
+            <ArrowUpFromLine className="w-3 h-3 text-[var(--color-text-tertiary)]" />{outDegree}
+          </span>
+        </span>
       </div>
     </div>
   );
