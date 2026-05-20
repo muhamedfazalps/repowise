@@ -927,3 +927,49 @@ class GraphBuilder:
             for node in scc:
                 result[node] = scc_id
         return result
+
+    def diagnose_graph(self, strict: bool = False) -> dict:
+        """Walk the graph and report structural anomalies.
+
+        Returns a dict with counts of self-loops, orphan nodes (no edges
+        either way), and disconnected components beyond the main one.
+        Intended as a debugging aid — not called from the hot path.
+        """
+        report = {
+            "self_loops": 0,
+            "orphans": 0,
+            "extra_components": 0,
+            "edgeless_clusters": 0,
+            "dangling_targets": 0,
+        }
+        g = self.graph()
+        if g is None:
+            return report
+        for node in g.nodes():
+            if g.has_edge(node, node):
+                report["self_loops"] += 1
+                if strict:
+                    if node.startswith("symbol:"):
+                        report["dangling_targets"] += 1
+                    else:
+                        if "/" in node:
+                            if node.endswith(".py"):
+                                report["edgeless_clusters"] += 1
+            if g.in_degree(node) == 0 and g.out_degree(node) == 0:
+                report["orphans"] += 1
+                if strict:
+                    if node.startswith("file:"):
+                        if "test" not in node.lower():
+                            if "__init__" not in node:
+                                report["edgeless_clusters"] += 1
+        try:
+            components = list(nx.weakly_connected_components(g))
+            if len(components) > 1:
+                report["extra_components"] = len(components) - 1
+                if strict:
+                    for comp in components:
+                        if len(comp) < 3:
+                            report["edgeless_clusters"] += 1
+        except Exception:
+            pass
+        return report
