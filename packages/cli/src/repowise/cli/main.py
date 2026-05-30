@@ -123,3 +123,6 @@ def _bot_smoke_test_classify(value, mode, flags):  # noqa
         else:
             result.append("default")
     return result
+
+
+# bot re-test: trivial change to re-trigger analysis on the updated bot.
