@@ -29,28 +29,28 @@ export const THEME = {
   },
 
   selection: {
-    ring: "#fbbf24",
-    ringAlpha: "rgba(251,191,36,0.4)",
+    ring: "var(--color-viz-selection, #f59520)",
+    ringAlpha: "var(--color-accent-muted, rgba(245,149,32,0.16))",
   },
 
   complexity: {
-    simple: "#22c55e",
-    moderate: "#f59e0b",
-    complex: "#ef4444",
+    simple: "var(--color-success, #1d8155)",
+    moderate: "var(--color-warning, #9a6614)",
+    complex: "var(--color-error, #b23a2e)",
   } as Record<string, string>,
 
   edge: {
-    imports: "#d4a754",
-    depends_on: "#e8976b",
-    contains: "#a78bfa",
-    tested_by: "#6ee7b7",
-    default: "#8b9dc3",
+    imports: "var(--color-edge-imports, #f59520)",
+    depends_on: "var(--color-warning, #9a6614)",
+    contains: "var(--color-accent-secondary, #58436c)",
+    tested_by: "var(--color-success, #1d8155)",
+    default: "var(--color-text-tertiary, #8c7f88)",
   } as Record<string, string>,
 
   diff: {
-    changed: "#fca5a5",
+    changed: "var(--color-viz-diff-changed, #b23a2e)",
     changedAlpha: "rgba(252,165,165,0.4)",
-    affected: "#fbbf24",
+    affected: "var(--color-viz-diff-affected, #9a6614)",
     affectedAlpha: "rgba(251,191,36,0.3)",
   },
 

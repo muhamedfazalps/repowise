@@ -136,6 +136,21 @@
   --color-edge-implements: #c85aa0; /* warm magenta */
   --color-edge-co-change: #7c5cc4;
 
+  /* C4 / graph canvas surfaces — consumed via the `THEME` object in
+     c4/graph-primitives, which can't see component classes. Previously these
+     names were undefined, so the canvas fell back to hardcoded dark navy in
+     BOTH themes; aliasing them to theme-aware surfaces fixes light mode. */
+  --color-bg-canvas: var(--color-bg-inset);
+  --color-canvas-dot: rgba(36, 27, 44, 0.08);
+  --color-bg-glass: rgba(255, 255, 255, 0.72);
+  --color-border-subtle: var(--color-border-default);
+  --color-text-muted: var(--color-text-tertiary);
+
+  /* Viz state colors (selection / diff) — brand-aligned + theme-aware */
+  --color-viz-selection: var(--color-accent-fill);
+  --color-viz-diff-changed: var(--color-error);
+  --color-viz-diff-affected: var(--color-warning);
+
   /* ================================================================== */
   /* Signature gradients (theme-independent)                            */
   /* ================================================================== */
@@ -255,6 +270,11 @@
 
   --color-node-undocumented: #6b6b6b;
   --viz-node-stroke: rgba(255, 255, 255, 0.22);
+
+  /* C4 / graph canvas surfaces — dark variants (the var()-derived aliases
+     flip on their own; only the explicit rgbas need a dark override). */
+  --color-canvas-dot: rgba(255, 255, 255, 0.06);
+  --color-bg-glass: rgba(36, 36, 36, 0.72);
 
   /* Edge hue that isn't a pure var() derivation gets a dark-legible tweak */
   --color-edge-inherits: #a98fc4; /* plum-300 reads better on dark */
