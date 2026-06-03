@@ -292,7 +292,7 @@ export function DecisionDetail({ decision, repoId }: DecisionDetailProps) {
             <button
               onClick={() => handleStatusChange("active")}
               disabled={loading}
-              className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="rounded-md bg-[var(--color-success)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-inverse)] hover:opacity-90 disabled:opacity-50"
             >
               Confirm
             </button>

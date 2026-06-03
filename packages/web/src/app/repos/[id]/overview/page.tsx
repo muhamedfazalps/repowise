@@ -250,10 +250,10 @@ export default async function OverviewPage({ params }: Props) {
               <CardContent>
                 <CommitCategorySparkline categories={aggregatedCategories} />
                 <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--color-text-tertiary)]">
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#5b9cf6" }} /> Feature</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#ef4444" }} /> Fix</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#a855f7" }} /> Refactor</span>
-                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "#f59520" }} /> Dependency</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--color-info)" }} /> Feature</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--color-error)" }} /> Fix</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--color-accent-secondary)" }} /> Refactor</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm" style={{ background: "var(--color-accent-fill)" }} /> Dependency</span>
                 </div>
               </CardContent>
             </Card>

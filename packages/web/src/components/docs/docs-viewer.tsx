@@ -552,7 +552,7 @@ function DocsViewerBody({
                 className={cn(
                   "rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
                   persona === p.value
-                    ? "bg-[var(--color-accent-primary)] text-white"
+                    ? "bg-[var(--color-accent-primary)] text-[var(--color-text-inverse)]"
                     : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
                 )}
               >
