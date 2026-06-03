@@ -24,12 +24,12 @@ ALLOW='(__tests__|\.test\.)'                              # test fixtures
 ALLOW+='|lib/confidence\.ts'                              # BRAND: LANGUAGE/EDGE color hex (canvas)
 ALLOW+='|costs/provider-comparison\.tsx'                  # BRAND: provider identity colors
 ALLOW+='|workspace/workspace-graph-node\.tsx'            # dynamic langColor hex-alpha concat
-# DEFERRED-VIZ — canvas / self-contained subsystems pending dual-theme pass:
-ALLOW+='|/c4/'                                            # C4 architecture diagram subsystem
-ALLOW+='|/graph/sigma/'                                   # Sigma canvas renderer
 ALLOW+='|graph-primitives/tone-styles\.ts'               # BRAND: categorical node-tone palette (like lang colors)
-ALLOW+='|wiki/git-history-panel\.tsx'                     # graph viz
-ALLOW+='|graph/(graph-flow|path-finder-panel|workspace-graph)\.tsx' # remaining graph canvas glue
+ALLOW+='|wiki/git-history-panel\.tsx'                     # BRAND: per-author categorical bar colors
+# DEFERRED-VIZ — canvas subsystems with their own runtime light/dark palette
+# (driven by the global theme), pending an aesthetic warm-palette retune:
+ALLOW+='|/c4/'                                            # C4 architecture diagram subsystem (panels theme-aware; node-tone fills pending)
+ALLOW+='|/graph/sigma/'                                   # Sigma canvas renderer (internal light/dark palette)
 
 violations=$(grep -rnE '#[0-9a-fA-F]{3,8}\b' "$ROOT" 2>/dev/null \
   | grep -vE "$ALLOW" || true)
