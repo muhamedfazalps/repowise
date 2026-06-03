@@ -6,3 +6,4 @@ export * from "./results-footer";
 export { RowActions, type RowAction } from "./row-actions";
 export * from "./entity";
 export { ThemeToggle, type ThemeToggleProps } from "./theme-toggle";
+export { resolveToken, resolveTokens, useThemeVersion } from "./use-theme-tokens";

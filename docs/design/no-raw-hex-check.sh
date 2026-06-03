@@ -28,7 +28,6 @@ ALLOW+='|workspace/workspace-graph-node\.tsx'            # dynamic langColor hex
 ALLOW+='|/c4/'                                            # C4 architecture diagram subsystem
 ALLOW+='|/graph/sigma/'                                   # Sigma canvas renderer
 ALLOW+='|graph-primitives/'                               # graph node/edge canvas primitives
-ALLOW+='|wiki/mermaid-diagram\.tsx'                       # Mermaid theme config
 ALLOW+='|decisions/decision-graph-view\.tsx'             # decision graph viz
 ALLOW+='|wiki/git-history-panel\.tsx'                     # graph viz
 ALLOW+='|graph/(graph-flow|path-finder-panel|workspace-graph)\.tsx' # remaining graph canvas glue

@@ -2,43 +2,70 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { resolveToken, useThemeVersion } from "../shared/use-theme-tokens";
 
 interface MermaidDiagramProps {
   chart: string;
 }
 
-let mermaidInitialized = false;
+/**
+ * Derive Mermaid's `themeVariables` from the live design tokens. Mermaid bakes
+ * concrete colors into the SVG it renders, so it can't consume `var()` — we
+ * read the computed token values and rebuild on each theme switch. `theme:
+ * "base"` is the only built-in theme that honors a full custom palette.
+ */
+function mermaidThemeConfig() {
+  // Rendered only client-side (dynamic import inside an effect), so the live
+  // computed tokens always resolve — no SSR fallback needed.
+  const surface = resolveToken("--color-bg-surface");
+  const elevated = resolveToken("--color-bg-elevated");
+  const inset = resolveToken("--color-bg-inset");
+  const border = resolveToken("--color-border-hover");
+  const text = resolveToken("--color-text-primary");
+  const line = resolveToken("--color-text-tertiary");
+  return {
+    theme: "base" as const,
+    themeVariables: {
+      background: elevated,
+      primaryColor: surface,
+      primaryBorderColor: border,
+      primaryTextColor: text,
+      secondaryColor: elevated,
+      tertiaryColor: inset,
+      lineColor: line,
+      textColor: text,
+      nodeBorder: border,
+      clusterBkg: inset,
+      clusterBorder: border,
+      edgeLabelBackground: elevated,
+    },
+  };
+}
+
+let mermaidSignature = "";
 
 async function ensureMermaid() {
   const { default: mermaid } = await import("mermaid");
-  if (!mermaidInitialized) {
+  const config = mermaidThemeConfig();
+  const signature = JSON.stringify(config.themeVariables);
+  // Re-initialize when the resolved palette changes (i.e. on theme switch);
+  // mermaid.initialize is global, so a new signature reconfigures it in place.
+  if (signature !== mermaidSignature) {
     mermaid.initialize({
       startOnLoad: false,
-      theme: "dark",
-      themeVariables: {
-        background: "#141414",
-        primaryColor: "#1c1c1c",
-        primaryBorderColor: "#3f3f46",
-        primaryTextColor: "#e4e4e7",
-        secondaryColor: "#1c1c1c",
-        tertiaryColor: "#0a0a0a",
-        lineColor: "#52525b",
-        textColor: "#e4e4e7",
-        nodeBorder: "#3f3f46",
-        clusterBkg: "#0a0a0a",
-        clusterBorder: "#3f3f46",
-        edgeLabelBackground: "#1c1c1c",
-      },
+      theme: config.theme,
+      themeVariables: config.themeVariables,
       flowchart: { htmlLabels: true, curve: "basis", padding: 12 },
       securityLevel: "loose",
     });
-    mermaidInitialized = true;
+    mermaidSignature = signature;
   }
   return mermaid;
 }
 
 function useMermaidRender(chart: string, target: HTMLDivElement | null) {
   const [error, setError] = useState<string | null>(null);
+  const themeVersion = useThemeVersion();
 
   useEffect(() => {
     if (!target) return;
@@ -67,7 +94,7 @@ function useMermaidRender(chart: string, target: HTMLDivElement | null) {
     return () => {
       cancelled = true;
     };
-  }, [chart, target]);
+  }, [chart, target, themeVersion]);
 
   return error;
 }
@@ -163,7 +190,7 @@ function MaximizedDialog({ chart, onClose }: { chart: string; onClose: () => voi
         onMouseLeave={onMouseUp}
       >
         {error ? (
-          <p className="p-6 text-sm text-red-400">Mermaid error: {error}</p>
+          <p className="p-6 text-sm text-[var(--color-error)]">Mermaid error: {error}</p>
         ) : (
           <div
             className="w-full h-full flex items-center justify-center"
@@ -188,7 +215,7 @@ export function MermaidDiagram({ chart }: MermaidDiagramProps) {
 
   if (error) {
     return (
-      <div className="rounded border border-[var(--color-border-default)] p-3 text-xs text-red-400">
+      <div className="rounded border border-[var(--color-border-default)] p-3 text-xs text-[var(--color-error)]">
         Mermaid error: {error}
       </div>
     );
