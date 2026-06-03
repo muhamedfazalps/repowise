@@ -2,72 +2,105 @@
 @plugin "@tailwindcss/typography";
 
 /*
- * @repowise-dev/ui â€” canonical design tokens.
+ * @repowise-dev/ui — canonical design tokens (October Sunset).
  *
- * Imported by every consumer that wants the standard Repowise look.
- * Tailwind v4 `@theme` block defines CSS custom properties; base styles,
- * scrollbar, focus, prose overrides, and React Flow theming follow.
+ * Three-tier token model:
+ *   1. Primitives — raw brand ramps (theme-independent), in @theme.
+ *   2. Semantic   — purpose-named tokens; registered in @theme at their
+ *                   LIGHT values (so Tailwind v4 generates utilities and
+ *                   :root defaults to light) and overridden under `.dark`.
+ *   3. Component  — graph / React Flow / data-viz tokens, mostly derived
+ *                   from semantic tokens via var() so they auto-theme.
  *
- * The `@source` directive below tells Tailwind v4 to scan component
- * source under `packages/ui/src/**` for utility classes â€” required so
- * consumers that import this file pick up classes used by shared
- * components without each consumer re-declaring the source path.
+ * Theme contract: `:root` = light (default), `.dark` (class on <html>,
+ * managed by next-themes) = dark overrides. Every theme-switched token has
+ * an explicit value in @theme (light) and a matching override in `.dark`.
+ * Derived tokens reference others via var() and need no override.
  *
- * Consumers can override individual tokens (accent, surface) by
- * declaring a `@theme` block of their own after importing this file.
+ * Backward-compat: every token name that existed before the redesign is
+ * preserved (parity-gated). Consumers can still override individual tokens
+ * by declaring their own @theme block after importing this file.
+ *
+ * @source tells Tailwind v4 to scan component source for utility classes
+ * so consumers pick them up without re-declaring the path.
  */
 
 @source "../src/**/*.{ts,tsx}";
 
 @theme {
-  /* ------------------------------------------------------------------ */
-  /* Core Surfaces                                                       */
-  /* ------------------------------------------------------------------ */
-  --color-bg-root: #0d0d0d;
-  --color-bg-surface: #141414;
-  --color-bg-elevated: #1c1c1c;
-  --color-bg-overlay: #202020;
-  --color-bg-inset: #0a0a0a;
+  /* ================================================================== */
+  /* TIER 1 — Primitive ramps (theme-independent; never used directly)  */
+  /* ================================================================== */
+  --color-sunset-50: #fff4ed;
+  --color-sunset-100: #ffe6d5;
+  --color-sunset-200: #ffc4b1;
+  --color-sunset-300: #f7a56e;
+  --color-sunset-400: #f2a03d;
+  --color-sunset-500: #f27f3d;
+  --color-sunset-600: #e0651f;
+  --color-sunset-700: #c04e14;
+  --color-sunset-800: #8c3d35;
+  --color-sunset-900: #5e2a22;
 
-  /* ------------------------------------------------------------------ */
-  /* Borders                                                             */
-  /* ------------------------------------------------------------------ */
-  --color-border-default: rgba(255, 255, 255, 0.06);
-  --color-border-hover: rgba(255, 255, 255, 0.12);
-  --color-border-active: rgba(255, 255, 255, 0.20);
+  --color-plum-50: #f4f1f8;
+  --color-plum-100: #e7e1f0;
+  --color-plum-200: #cfc3df;
+  --color-plum-300: #a98fc4;
+  --color-plum-400: #826aa0;
+  --color-plum-500: #58436c;
+  --color-plum-600: #473659;
+  --color-plum-700: #362945;
+  --color-plum-800: #261c32;
+  --color-plum-900: #1a1320;
 
-  /* ------------------------------------------------------------------ */
-  /* Text                                                                */
-  /* ------------------------------------------------------------------ */
-  --color-text-primary: #ececec;
-  --color-text-secondary: #999999;
-  --color-text-tertiary: #5c5c5c;
-  --color-text-inverse: #0d0d0d;
+  --color-clay: #8c3d35;
+  --color-peach: #ffc4b1;
+  --color-cream: #fce9dd;
+  --color-amber: #f2a03d;
 
-  /* ------------------------------------------------------------------ */
-  /* Accent â€” repowise Orange                                            */
-  /* ------------------------------------------------------------------ */
-  --color-accent-primary: #f59520;
-  --color-accent-hover: #f7a94d;
-  --color-accent-muted: rgba(245, 149, 32, 0.15);
+  /* ================================================================== */
+  /* TIER 2 — Semantic tokens (LIGHT defaults; `.dark` overrides below) */
+  /* ================================================================== */
 
-  /* ------------------------------------------------------------------ */
-  /* Confidence System                                                   */
-  /* ------------------------------------------------------------------ */
-  --color-confidence-fresh: #22c55e;
-  --color-confidence-stale: #eab308;
-  --color-confidence-outdated: #ef4444;
+  /* Core surfaces — warm paper / pure-white cards */
+  --color-bg-root: #fbf6f1;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #fbf4ee;
+  --color-bg-overlay: #ffffff;
+  --color-bg-inset: #f4eae1;
 
-  /* ------------------------------------------------------------------ */
-  /* Semantic                                                            */
-  /* ------------------------------------------------------------------ */
-  --color-success: #22c55e;
-  --color-warning: #eab308;
-  --color-error: #ef4444;
-  --color-info: #f59520;
+  /* Borders — plum-tinted hairlines */
+  --color-border-default: rgba(88, 67, 108, 0.12);
+  --color-border-hover: rgba(88, 67, 108, 0.22);
+  --color-border-active: rgba(192, 78, 20, 0.8);
 
-  /* Aliases â€” short names used in component class strings.              */
-  /* Keep these in sync with the canonical confidence/accent tokens.     */
+  /* Text — plum-near-black on warm paper */
+  --color-text-primary: #241b2c;
+  --color-text-secondary: #5e5360;
+  --color-text-tertiary: #8c7f88;
+  --color-text-inverse: #ffffff;
+  --color-text-on-accent: #241b2c;
+
+  /* Accent — October Sunset (orange) */
+  --color-accent-primary: #b95319;
+  --color-accent-fill: #f27f3d;
+  --color-accent-fill-hover: #e0651f;
+  --color-accent-hover: #9a4513;
+  --color-accent-muted: rgba(242, 127, 61, 0.12);
+  --color-accent-secondary: #58436c;
+
+  /* Confidence system */
+  --color-confidence-fresh: #1d8155;
+  --color-confidence-stale: #9a6614;
+  --color-confidence-outdated: #b23a2e;
+
+  /* Semantic status */
+  --color-success: #1d8155;
+  --color-warning: #9a6614;
+  --color-error: #b23a2e;
+  --color-info: #58436c;
+
+  /* Aliases — short names used in component class strings. Keep in sync. */
   --color-fresh: var(--color-confidence-fresh);
   --color-stale: var(--color-confidence-stale);
   --color-outdated: var(--color-confidence-outdated);
@@ -75,19 +108,18 @@
   --color-accent-blue: var(--color-accent-primary);
   --color-border-accent: var(--color-accent-primary);
 
-  /* ------------------------------------------------------------------ */
-  /* Graph â€” React Flow                                                  */
-  /* ------------------------------------------------------------------ */
-  --color-accent-graph: #f59520;
-  --color-risk-low: #22c55e;
-  --color-risk-medium: #f59520;
-  --color-risk-high: #ef4444;
-  --color-node-documented: #22c55e;
-  --color-node-undocumented: #64748b;
+  /* ================================================================== */
+  /* TIER 3 — Graph / data-viz (derived; auto-theme via var())          */
+  /* ================================================================== */
+  --color-accent-graph: var(--color-accent-fill);
+  --color-risk-low: var(--color-success);
+  --color-risk-medium: var(--color-warning);
+  --color-risk-high: var(--color-error);
+  --color-node-documented: var(--color-success);
+  --color-node-undocumented: #9a8da0; /* light; overridden in .dark */
+  --viz-node-stroke: rgba(36, 27, 44, 0.25); /* halo so nodes read on bg */
 
-  /* ------------------------------------------------------------------ */
-  /* Language Colors (graph nodes)                                       */
-  /* ------------------------------------------------------------------ */
+  /* Language colors (canonical brand hues — theme-independent) */
   --color-lang-python: #3776ab;
   --color-lang-typescript: #3178c6;
   --color-lang-go: #00add8;
@@ -97,18 +129,33 @@
   --color-lang-config: #6b7280;
   --color-lang-other: #8b5cf6;
 
-  /* ------------------------------------------------------------------ */
-  /* Edge Colors (graph edges)                                           */
-  /* ------------------------------------------------------------------ */
-  --color-edge-imports: #f59520;
-  --color-edge-calls: #22c55e;
-  --color-edge-inherits: #a855f7;
-  --color-edge-implements: #ec4899;
-  --color-edge-co-change: #8b5cf6;
+  /* Edge colors (graph edges) — remapped to the new palette */
+  --color-edge-imports: var(--color-accent-fill);
+  --color-edge-calls: var(--color-success);
+  --color-edge-inherits: #826aa0; /* plum-400 */
+  --color-edge-implements: #c85aa0; /* warm magenta */
+  --color-edge-co-change: #7c5cc4;
 
-  /* ------------------------------------------------------------------ */
-  /* Typography                                                          */
-  /* ------------------------------------------------------------------ */
+  /* ================================================================== */
+  /* Signature gradients (theme-independent)                            */
+  /* ================================================================== */
+  --gradient-sunset: linear-gradient(135deg, #58436c 0%, #f27f3d 55%, #f2a03d 100%);
+  --gradient-ember: linear-gradient(135deg, #f27f3d 0%, #f2a03d 100%);
+  --gradient-peach: linear-gradient(160deg, #ffc4b1 0%, #f2a03d 100%);
+  --gradient-plum: linear-gradient(135deg, #362945 0%, #58436c 100%);
+
+  /* ================================================================== */
+  /* Elevation — warm/plum-tinted shadows (LIGHT; `.dark` overrides)    */
+  /* ================================================================== */
+  --shadow-sm: 0 1px 2px rgba(36, 27, 44, 0.06);
+  --shadow-md: 0 2px 8px rgba(36, 27, 44, 0.08), 0 1px 2px rgba(36, 27, 44, 0.06);
+  --shadow-lg: 0 8px 24px rgba(36, 27, 44, 0.1), 0 2px 6px rgba(36, 27, 44, 0.06);
+  --shadow-xl: 0 16px 48px rgba(36, 27, 44, 0.14), 0 4px 12px rgba(36, 27, 44, 0.08);
+  --shadow-button: 0 1px 2px rgba(192, 78, 20, 0.2);
+
+  /* ================================================================== */
+  /* Non-color tokens (theme-independent)                               */
+  /* ================================================================== */
   --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "Geist Mono", "JetBrains Mono", "Fira Code", monospace;
 
@@ -124,9 +171,6 @@
   --leading-normal: 1.5;
   --leading-relaxed: 1.75;
 
-  /* ------------------------------------------------------------------ */
-  /* Spacing (4px base grid)                                             */
-  /* ------------------------------------------------------------------ */
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
@@ -138,17 +182,11 @@
   --spacing-12: 3rem;
   --spacing-16: 4rem;
 
-  /* ------------------------------------------------------------------ */
-  /* Radii                                                               */
-  /* ------------------------------------------------------------------ */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
   --radius-xl: 14px;
 
-  /* ------------------------------------------------------------------ */
-  /* Z-Index Scale                                                       */
-  /* ------------------------------------------------------------------ */
   --z-base: 0;
   --z-elevated: 10;
   --z-dropdown: 20;
@@ -157,16 +195,10 @@
   --z-command: 50;
   --z-toast: 60;
 
-  /* ------------------------------------------------------------------ */
-  /* Layout                                                              */
-  /* ------------------------------------------------------------------ */
   --sidebar-width: 260px;
   --context-panel-width: 280px;
   --content-max-width: 768px;
 
-  /* ------------------------------------------------------------------ */
-  /* Animation                                                           */
-  /* ------------------------------------------------------------------ */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-inout: cubic-bezier(0.87, 0, 0.13, 1);
@@ -176,12 +208,71 @@
 }
 
 /* -------------------------------------------------------------------- */
-/* Base Styles                                                           */
+/* DARK overrides — only the theme-switched tokens                       */
 /* -------------------------------------------------------------------- */
 
-html {
+.dark {
+  --color-bg-root: #17121c;
+  --color-bg-surface: #1f1826;
+  --color-bg-elevated: #271f30;
+  --color-bg-overlay: #2d2438;
+  --color-bg-inset: #120e17;
+
+  --color-border-default: rgba(255, 240, 230, 0.08);
+  --color-border-hover: rgba(255, 240, 230, 0.16);
+  --color-border-active: rgba(242, 160, 61, 0.55);
+
+  --color-text-primary: #f5eae3;
+  --color-text-secondary: #b7a9b2;
+  --color-text-tertiary: #7e7186;
+  --color-text-inverse: #17121c;
+  --color-text-on-accent: #17121c;
+
+  --color-accent-primary: #f2a03d;
+  --color-accent-fill: #f27f3d;
+  --color-accent-fill-hover: #f7b65e;
+  --color-accent-hover: #f7b65e;
+  --color-accent-muted: rgba(242, 160, 61, 0.16);
+  --color-accent-secondary: #a98fc4;
+
+  --color-confidence-fresh: #34d399;
+  --color-confidence-stale: #f2a03d;
+  --color-confidence-outdated: #e06a5a;
+
+  --color-success: #34d399;
+  --color-warning: #f2a03d;
+  --color-error: #e06a5a;
+  --color-info: #a98fc4;
+
+  --color-node-undocumented: #6e6276;
+  --viz-node-stroke: rgba(255, 240, 230, 0.25);
+
+  /* Edge hue that isn't a pure var() derivation gets a dark-legible tweak */
+  --color-edge-inherits: #a98fc4; /* plum-300 reads better on dark */
+
+  /* Warm-but-deep shadows with an inset hairline for premium depth */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 240, 230, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 240, 230, 0.05);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 240, 230, 0.06);
+  --shadow-button: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* -------------------------------------------------------------------- */
+/* Color-scheme — dynamic, fixes native controls & scrollbars            */
+/* -------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+}
+
+.dark {
   color-scheme: dark;
 }
+
+/* -------------------------------------------------------------------- */
+/* Base Styles                                                           */
+/* -------------------------------------------------------------------- */
 
 body {
   background-color: var(--color-bg-root);
@@ -194,7 +285,7 @@ body {
 }
 
 /* -------------------------------------------------------------------- */
-/* Scrollbar                                                             */
+/* Scrollbar — plum-tinted thumb (light) / warm-white (dark)             */
 /* -------------------------------------------------------------------- */
 
 ::-webkit-scrollbar {
@@ -207,12 +298,20 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(88, 67, 108, 0.25);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(88, 67, 108, 0.4);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 240, 230, 0.12);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 240, 230, 0.22);
 }
 
 /* -------------------------------------------------------------------- */
@@ -220,7 +319,7 @@ body {
 /* -------------------------------------------------------------------- */
 
 :focus-visible {
-  outline: 2px solid var(--color-accent-primary);
+  outline: 2px solid var(--color-accent-fill);
   outline-offset: 2px;
 }
 
@@ -249,7 +348,7 @@ body {
 }
 
 /* -------------------------------------------------------------------- */
-/* Typography: prose overrides for wiki content                          */
+/* Typography: prose overrides for wiki content (token-driven)           */
 /* -------------------------------------------------------------------- */
 
 .prose {
@@ -298,29 +397,41 @@ body {
 }
 
 /* -------------------------------------------------------------------- */
-/* React Flow Dark Theme                                                 */
+/* React Flow theme (token-driven; light default + dark overrides)       */
 /* -------------------------------------------------------------------- */
 
 .react-flow {
   --xy-background-color: transparent;
   --xy-minimap-background-color: var(--color-bg-surface);
-  --xy-minimap-mask-background: rgba(0, 0, 0, 0.6);
+  --xy-minimap-mask-background: rgba(36, 27, 44, 0.4);
   --xy-minimap-mask-stroke: none;
   --xy-controls-button-background-color: var(--color-bg-elevated);
   --xy-controls-button-background-color-hover: var(--color-bg-overlay);
   --xy-controls-button-border-color: var(--color-border-default);
   --xy-controls-button-color: var(--color-text-secondary);
   --xy-controls-button-color-hover: var(--color-text-primary);
-  --xy-edge-stroke: rgba(245, 149, 32, 0.3);
+  --xy-edge-stroke: rgba(192, 78, 20, 0.35);
   --xy-edge-stroke-selected: var(--color-accent-graph);
   --xy-node-border-radius: var(--radius-lg);
 }
 
+.dark .react-flow {
+  --xy-minimap-mask-background: rgba(0, 0, 0, 0.6);
+  --xy-edge-stroke: rgba(242, 160, 61, 0.3);
+}
+
 @keyframes graph-path-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 149, 32, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(245, 149, 32, 0.2); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(242, 127, 61, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(242, 127, 61, 0.2);
+  }
 }
 
 @keyframes graph-marching-ants {
-  to { stroke-dashoffset: -20; }
+  to {
+    stroke-dashoffset: -20;
+  }
 }
