@@ -97,7 +97,7 @@ export function languageColor(lang: string): string {
 
 /** Color hex for a graph edge type (October Sunset palette; mirrors --color-edge-*) */
 export const EDGE_COLORS: Record<string, string> = {
-  imports: "#F27F3D",
+  imports: "#F59520",
   calls: "#34D399",
   inherits: "#A98FC4",
   implements: "#C85AA0",

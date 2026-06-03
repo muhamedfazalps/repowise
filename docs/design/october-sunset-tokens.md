@@ -16,11 +16,12 @@
 1. **Default theme — Dark.** Preserves current product behavior; System/Light
    are opt-in via the toggle. (`next-themes` `defaultTheme="dark"`,
    `enableSystem`.)
-2. **Light-mode accent strategy.** `--color-accent-primary` is darkened to
-   `#B95319` so accent *text/icons/links* clear AA on white **and** warm paper.
-   The vivid sunset (`#F27F3D`) is reserved for *fills* via the new
-   `--color-accent-fill`. Plum (`--color-accent-secondary`) is used for
-   links-alt **and** data-viz.
+2. **Light-mode accent strategy.** The brand accent stays repowise orange
+   `#f59520` — it's `--color-accent-fill` (CTAs, active fills, focus ring) in
+   **both** modes. Only accent *text/icons/links* darken to `#A16215`
+   (`--color-accent-primary`) in light so they clear AA on white **and** warm
+   paper (bright orange can't be AA as small text). Plum
+   (`--color-accent-secondary`) is used for links-alt **and** data-viz.
 3. **Gradient intensity.** Restrained in-product (active states, small accent
    washes); bold in marketing (full hero meshes).
 
@@ -30,15 +31,15 @@ A single accent can't be both AA-as-text on white *and* vivid-as-a-CTA. So:
 
 | Token | Light | Dark | Used for |
 |-------|-------|------|----------|
-| `--color-accent-primary` | `#B95319` | `#F2A03D` | accent **text, icons, links, borders**; also a fill (white text on it) |
-| `--color-accent-fill` | `#F27F3D` | `#F27F3D` | vivid **CTA / selected fills** (dark text on it) |
+| `--color-accent-primary` | `#A16215` | `#F59520` | accent **text, icons, links, borders**; also a fill (white text on it) |
+| `--color-accent-fill` | `#F59520` | `#F59520` | brand-orange **CTA / selected fills** (dark text on it) |
 | `--color-text-inverse` | `#FFFFFF` | `#17121C` | text on an `accent-primary` fill |
-| `--color-text-on-accent` | `#241B2C` | `#17121C` | text on the vivid `accent-fill` |
+| `--color-text-on-accent` | `#241B2C` | `#17121C` | text on the brand `accent-fill` |
 
-White on the vivid `#F27F3D` is only 2.67:1 — so CTAs use **dark** text
-(`text-on-accent`, 6.21:1). Existing `bg-accent-primary text-text-inverse`
+White on the bright `#f59520` fill is only ~2.0:1 — so CTAs use **dark** text
+(`text-on-accent`, 7.26:1). Existing `bg-accent-primary text-text-inverse`
 fills keep working because `text-inverse` flips per theme (white in light on
-the deep `#B95319` = 4.87:1; near-black in dark on bright `#F2A03D` = 8.66:1).
+the deep `#A16215` = 4.91:1; near-black in dark on bright `#F59520` = 8.07:1).
 
 ## Resolved core semantic tokens
 
@@ -57,10 +58,11 @@ the deep `#B95319` = 4.87:1; near-black in dark on bright `#F2A03D` = 8.66:1).
 | `--color-text-tertiary` | `#8C7F88` | `#7E7186` |
 | `--color-text-inverse` | `#FFFFFF` | `#17121C` |
 | `--color-text-on-accent` | `#241B2C` | `#17121C` |
-| `--color-accent-primary` | `#B95319` | `#F2A03D` |
-| `--color-accent-fill` | `#F27F3D` | `#F27F3D` |
-| `--color-accent-hover` | `#9A4513` | `#F7B65E` |
-| `--color-accent-muted` | `rgba(242,127,61,.12)` | `rgba(242,160,61,.16)` |
+| `--color-accent-primary` | `#A16215` | `#F59520` |
+| `--color-accent-fill` | `#F59520` | `#F59520` |
+| `--color-accent-fill-hover` | `#E0850F` | `#F7A94D` |
+| `--color-accent-hover` | `#824F10` | `#F7A94D` |
+| `--color-accent-muted` | `rgba(245,149,32,.12)` | `rgba(245,149,32,.16)` |
 | `--color-accent-secondary` | `#58436C` | `#A98FC4` |
 
 ### Status (functional, tuned)
@@ -87,8 +89,8 @@ the deep `#B95319` = 4.87:1; near-black in dark on bright `#F2A03D` = 8.66:1).
 ## Signature gradients
 
 ```
---gradient-sunset: linear-gradient(135deg,#58436C 0%,#F27F3D 55%,#F2A03D 100%)
---gradient-ember:  linear-gradient(135deg,#F27F3D 0%,#F2A03D 100%)
+--gradient-sunset: linear-gradient(135deg,#58436C 0%,#F59520 55%,#F7A94D 100%)
+--gradient-ember:  linear-gradient(135deg,#F59520 0%,#F7A94D 100%)
 --gradient-peach:  linear-gradient(160deg,#FFC4B1 0%,#F2A03D 100%)
 --gradient-plum:   linear-gradient(135deg,#362945 0%,#58436C 100%)
 ```
@@ -110,16 +112,16 @@ selected/active accents — never behind body text. Text over gradients uses
 | Secondary text on page | 6.78 | 4.5 | PASS |
 | Secondary text on card | 7.29 | 4.5 | PASS |
 | Tertiary/hint on card | 3.81 | 3.0 | PASS |
-| Accent text on card | 4.87 | 4.5 | PASS |
-| Accent text on page | 4.53 | 4.5 | PASS |
+| Accent text on card | 4.91 | 4.5 | PASS |
+| Accent text on page | 4.58 | 4.5 | PASS |
 | Plum link-alt on card | 8.63 | 4.5 | PASS |
-| Text on accent fill (CTA) | 6.21 | 4.5 | PASS |
-| Text on accent-primary fill | 4.87 | 4.5 | PASS |
+| Text on accent fill (CTA) | 7.26 | 4.5 | PASS |
+| Text on accent-primary fill | 4.91 | 4.5 | PASS |
 | Success text on card | 4.86 | 4.5 | PASS |
 | Warning text on card | 4.90 | 4.5 | PASS |
 | Error text on card | 5.94 | 4.5 | PASS |
 | Info text on card | 8.63 | 4.5 | PASS |
-| Active border on card | 3.47 | 3.0 | PASS |
+| Active border on card | 3.59 | 3.0 | PASS |
 
 ### Dark mode
 | Pair | Ratio | Floor | Result |
@@ -130,15 +132,15 @@ selected/active accents — never behind body text. Text over gradients uses
 | Secondary text on page | 8.19 | 4.5 | PASS |
 | Secondary text on card | 7.67 | 4.5 | PASS |
 | Tertiary/hint on card | 3.77 | 3.0 | PASS |
-| Accent text on card | 8.11 | 4.5 | PASS |
-| Accent text on page | 8.66 | 4.5 | PASS |
+| Accent text on card | 7.56 | 4.5 | PASS |
+| Accent text on page | 8.07 | 4.5 | PASS |
 | Plum link-alt on card | 6.09 | 4.5 | PASS |
-| Text on accent fill (CTA) | 6.91 | 4.5 | PASS |
-| Text on accent-primary fill | 8.66 | 4.5 | PASS |
+| Text on accent fill (CTA) | 8.07 | 4.5 | PASS |
+| Text on accent-primary fill | 8.07 | 4.5 | PASS |
 | Success text on card | 8.98 | 4.5 | PASS |
 | Warning text on card | 8.11 | 4.5 | PASS |
 | Error text on card | 5.24 | 4.5 | PASS |
 | Info text on card | 6.09 | 4.5 | PASS |
-| Active border on card | 3.34 | 3.0 | PASS |
+| Active border on card | 3.17 | 3.0 | PASS |
 
 **32 pairs · 0 failures.**

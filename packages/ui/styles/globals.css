@@ -72,7 +72,7 @@
   /* Borders — plum-tinted hairlines */
   --color-border-default: rgba(88, 67, 108, 0.12);
   --color-border-hover: rgba(88, 67, 108, 0.22);
-  --color-border-active: rgba(192, 78, 20, 0.8);
+  --color-border-active: rgba(176, 107, 18, 0.9);
 
   /* Text — plum-near-black on warm paper */
   --color-text-primary: #241b2c;
@@ -82,11 +82,11 @@
   --color-text-on-accent: #241b2c;
 
   /* Accent — October Sunset (orange) */
-  --color-accent-primary: #b95319;
-  --color-accent-fill: #f27f3d;
-  --color-accent-fill-hover: #e0651f;
-  --color-accent-hover: #9a4513;
-  --color-accent-muted: rgba(242, 127, 61, 0.12);
+  --color-accent-primary: #a16215;
+  --color-accent-fill: #f59520;
+  --color-accent-fill-hover: #e0850f;
+  --color-accent-hover: #824f10;
+  --color-accent-muted: rgba(245, 149, 32, 0.12);
   --color-accent-secondary: #58436c;
 
   /* Confidence system */
@@ -139,9 +139,9 @@
   /* ================================================================== */
   /* Signature gradients (theme-independent)                            */
   /* ================================================================== */
-  --gradient-sunset: linear-gradient(135deg, #58436c 0%, #f27f3d 55%, #f2a03d 100%);
-  --gradient-ember: linear-gradient(135deg, #f27f3d 0%, #f2a03d 100%);
-  --gradient-peach: linear-gradient(160deg, #ffc4b1 0%, #f2a03d 100%);
+  --gradient-sunset: linear-gradient(135deg, #58436c 0%, #f59520 55%, #f7a94d 100%);
+  --gradient-ember: linear-gradient(135deg, #f59520 0%, #f7a94d 100%);
+  --gradient-peach: linear-gradient(160deg, #ffc4b1 0%, #f59520 100%);
   --gradient-plum: linear-gradient(135deg, #362945 0%, #58436c 100%);
 
   /* ================================================================== */
@@ -151,7 +151,7 @@
   --shadow-md: 0 2px 8px rgba(36, 27, 44, 0.08), 0 1px 2px rgba(36, 27, 44, 0.06);
   --shadow-lg: 0 8px 24px rgba(36, 27, 44, 0.1), 0 2px 6px rgba(36, 27, 44, 0.06);
   --shadow-xl: 0 16px 48px rgba(36, 27, 44, 0.14), 0 4px 12px rgba(36, 27, 44, 0.08);
-  --shadow-button: 0 1px 2px rgba(192, 78, 20, 0.2);
+  --shadow-button: 0 1px 2px rgba(214, 127, 16, 0.22);
 
   /* ================================================================== */
   /* Non-color tokens (theme-independent)                               */
@@ -220,7 +220,7 @@
 
   --color-border-default: rgba(255, 240, 230, 0.08);
   --color-border-hover: rgba(255, 240, 230, 0.16);
-  --color-border-active: rgba(242, 160, 61, 0.55);
+  --color-border-active: rgba(245, 149, 32, 0.55);
 
   --color-text-primary: #f5eae3;
   --color-text-secondary: #b7a9b2;
@@ -228,11 +228,11 @@
   --color-text-inverse: #17121c;
   --color-text-on-accent: #17121c;
 
-  --color-accent-primary: #f2a03d;
-  --color-accent-fill: #f27f3d;
-  --color-accent-fill-hover: #f7b65e;
-  --color-accent-hover: #f7b65e;
-  --color-accent-muted: rgba(242, 160, 61, 0.16);
+  --color-accent-primary: #f59520;
+  --color-accent-fill: #f59520;
+  --color-accent-fill-hover: #f7a94d;
+  --color-accent-hover: #f7a94d;
+  --color-accent-muted: rgba(245, 149, 32, 0.16);
   --color-accent-secondary: #a98fc4;
 
   --color-confidence-fresh: #34d399;
@@ -410,23 +410,23 @@ body {
   --xy-controls-button-border-color: var(--color-border-default);
   --xy-controls-button-color: var(--color-text-secondary);
   --xy-controls-button-color-hover: var(--color-text-primary);
-  --xy-edge-stroke: rgba(192, 78, 20, 0.35);
+  --xy-edge-stroke: rgba(214, 127, 16, 0.35);
   --xy-edge-stroke-selected: var(--color-accent-graph);
   --xy-node-border-radius: var(--radius-lg);
 }
 
 .dark .react-flow {
   --xy-minimap-mask-background: rgba(0, 0, 0, 0.6);
-  --xy-edge-stroke: rgba(242, 160, 61, 0.3);
+  --xy-edge-stroke: rgba(245, 149, 32, 0.3);
 }
 
 @keyframes graph-path-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(242, 127, 61, 0.4);
+    box-shadow: 0 0 0 0 rgba(245, 149, 32, 0.4);
   }
   50% {
-    box-shadow: 0 0 12px 4px rgba(242, 127, 61, 0.2);
+    box-shadow: 0 0 12px 4px rgba(245, 149, 32, 0.2);
   }
 }
 
