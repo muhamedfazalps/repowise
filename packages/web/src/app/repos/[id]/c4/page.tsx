@@ -23,6 +23,7 @@ import {
   archEdgeTypes,
   SearchBar,
   ArchBreadcrumb,
+  ProjectOverview,
   PersonaSelector,
   NodeTypeCategoryFilters,
   FilterPanel,
@@ -291,6 +292,16 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable maskColor="rgba(11,18,32,0.85)" />
         </ReactFlow>
+
+        {/* Orientation-first landing: story before scene (plan C-1). */}
+        {navigationLevel === "overview" && !selectedNodeId && (
+          <aside
+            aria-label="Project orientation"
+            className="absolute top-3 left-3 bottom-3 z-10 w-72 overflow-y-auto rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-elevated,rgba(17,24,39,0.96))] shadow-xl"
+          >
+            <ProjectOverview />
+          </aside>
+        )}
 
         {hiddenEdgeCount > 0 && (
           <div
