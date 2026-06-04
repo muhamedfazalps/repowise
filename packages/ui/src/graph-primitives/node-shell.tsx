@@ -36,9 +36,9 @@ function getBorderColor(props: NodeShellProps, fallbackBorder: string): string {
 }
 
 function getBoxShadow(props: NodeShellProps): string {
-  if (props.selected) return "0 0 0 2px rgba(251,191,36,0.4)";
-  if (props.diffState === "changed") return "0 0 0 2px rgba(252,165,165,0.4)";
-  if (props.diffState === "affected") return "0 0 0 2px rgba(251,191,36,0.3)";
+  if (props.selected) return "0 0 0 2px color-mix(in srgb, var(--color-viz-selection) 40%, transparent)";
+  if (props.diffState === "changed") return "0 0 0 2px color-mix(in srgb, var(--color-viz-diff-changed) 40%, transparent)";
+  if (props.diffState === "affected") return "0 0 0 2px color-mix(in srgb, var(--color-viz-diff-affected) 35%, transparent)";
   return "0 1px 2px rgba(0,0,0,0.2)";
 }
 

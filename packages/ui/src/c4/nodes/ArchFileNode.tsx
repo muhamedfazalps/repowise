@@ -3,7 +3,8 @@
 import { memo } from "react";
 import { Flame, Skull, Play } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
-import { NodeShell } from "../../graph-primitives/node-shell";
+import { InkNodeShell, type InkRole } from "./ink-node-shell";
+import { getKindIcon } from "./kind-icons";
 import { EntityHoverCard } from "../../shared/entity";
 import { THEME } from "../theme/theme-variables";
 import type { ArchNode } from "../types";
@@ -30,6 +31,14 @@ function ArchFileNodeImpl(props: NodeProps) {
 
   const kindLabel = isBarrel ? "barrel" : node.node_type;
 
+  // Role-based ink (plan §2.2): entry points are the orange "start here"
+  // blocks; barrels recede to secondary ink; everything else is primary.
+  const role: InkRole = node.is_entry_point && !isBarrel
+    ? "accent"
+    : isBarrel
+      ? "secondary"
+      : "primary";
+
   const complexityColor = THEME.complexity[node.complexity] ?? THEME.text.muted;
 
   const badges = (
@@ -55,7 +64,7 @@ function ArchFileNodeImpl(props: NodeProps) {
         </span>
       )}
       {node.is_entry_point && !isBarrel && (
-        <span title="Entry point" aria-label="Entry point" style={{ display: "inline-flex", color: THEME.status.entry }}>
+        <span title="Entry point" aria-label="Entry point" style={{ display: "inline-flex", color: "currentColor" }}>
           <Play size={10} aria-hidden />
         </span>
       )}
@@ -117,12 +126,13 @@ function ArchFileNodeImpl(props: NodeProps) {
               : { transition: "opacity 0.2s ease" }
         }
       >
-        <NodeShell
-          tone={node.node_type}
+        <InkNodeShell
+          role={role}
+          icon={getKindIcon(node.node_type)}
           kindLabel={kindLabel}
           title={node.name}
           subtitle={node.summary}
-          footer={footer}
+          meta={footer}
           selected={selected}
           searchHighlight={searchHighlight}
           tourHighlight={tourHighlight}

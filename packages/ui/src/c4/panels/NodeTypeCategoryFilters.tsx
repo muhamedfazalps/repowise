@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useArchitectureStore } from "../store/use-architecture-store";
+import { getKindIcon } from "../nodes/kind-icons";
 import type { ArchNodeType } from "../types";
 
 const CATEGORY_NODE_TYPES: Record<string, ArchNodeType[]> = {
@@ -12,13 +13,14 @@ const CATEGORY_NODE_TYPES: Record<string, ArchNodeType[]> = {
   data: ["table", "endpoint", "schema"],
 };
 
-// Interim semantic mapping (warm palette); B2 replaces dots with kind icons.
-const CATEGORY_COLORS: Record<string, string> = {
-  code: "var(--color-accent-fill)",
-  config: "var(--color-warning)",
-  docs: "var(--color-info)",
-  infra: "var(--color-accent-secondary)",
-  data: "var(--color-success)",
+// Each category pill carries its representative kind glyph (ink system —
+// icons encode type, not color; kg-ux plan §2.2).
+const CATEGORY_ICON_KIND: Record<string, string> = {
+  code: "file",
+  config: "config",
+  docs: "document",
+  infra: "service",
+  data: "table",
 };
 
 export function NodeTypeCategoryFilters() {
@@ -50,27 +52,32 @@ export function NodeTypeCategoryFilters() {
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       {Object.keys(CATEGORY_NODE_TYPES).map((category) => {
         const active = nodeTypeFilters[category] !== false;
-        const color = CATEGORY_COLORS[category] ?? "var(--color-text-muted)";
+        const Icon = getKindIcon(CATEGORY_ICON_KIND[category] ?? "file");
         return (
           <button
             key={category}
             type="button"
             onClick={() => handleToggle(category)}
             style={{
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
               padding: "3px 10px",
               borderRadius: 12,
               fontSize: 10,
               fontWeight: 600,
               cursor: "pointer",
-              border: `1px solid ${color}`,
-              color: color,
-              background: "transparent",
-              opacity: active ? 1 : 0.35,
+              border: active
+                ? "1px solid var(--color-accent-primary)"
+                : "1px solid var(--color-border-default)",
+              color: active ? "var(--color-accent-primary)" : "var(--color-text-secondary)",
+              background: active ? "var(--color-accent-muted)" : "transparent",
+              opacity: active ? 1 : 0.55,
               textDecoration: active ? "none" : "line-through",
               transition: "opacity 0.15s",
             }}
           >
+            <Icon size={11} aria-hidden />
             {category}
           </button>
         );

@@ -97,6 +97,12 @@ LIGHT = {
     "warning": "#9A6614",
     "error": "#B23A2E",
     "info": "#58436C",
+    # Blueprint diagram ink (light) — KG canvas + mermaid.
+    "diagram-node-fill": "#241B2C",
+    "diagram-node-fill-2": "#4A4152",
+    "diagram-node-text": "#FBF6F1",
+    "diagram-node-border": "#241B2C",
+    "gradient-ember-end": "#F7A94D",
     # Community family hubs (light) — graph clustering palette.
     "community-1": "#C0641A",  "community-2": "#58436C",  "community-3": "#B23A2E",
     "community-4": "#6B7A3D",  "community-5": "#B06A86",  "community-6": "#4A5D7A",
@@ -124,6 +130,12 @@ DARK = {
     "warning": "#F2A03D",
     "error": "#E06A5A",
     "info": "#A98FC4",
+    # Blueprint diagram ink (dark) — border carries canvas separation.
+    "diagram-node-fill": "#322A3E",
+    "diagram-node-fill-2": "#261F30",
+    "diagram-node-text": "#EEEAF4",
+    "diagram-node-border": "rgba(222,210,235,0.45)",
+    "gradient-ember-end": "#F7A94D",
     # Community family hubs (dark) — lifted to read on the near-black canvas.
     "community-1": "#F59520",  "community-2": "#A98FC4",  "community-3": "#E06A5A",
     "community-4": "#A9BB6F",  "community-5": "#D795B1",  "community-6": "#8FA3C0",
@@ -149,6 +161,12 @@ CHECKS = [
     ("error", "bg-surface", 4.5, "Error text on card"),
     ("info", "bg-surface", 4.5, "Info text on card"),
     ("border-active", "bg-surface", 3.0, "Active border on card"),
+    # Blueprint ink nodes (KG canvas): text on both ink weights; the node
+    # boundary (fill in light, border in dark) must separate from the canvas.
+    ("diagram-node-text", "diagram-node-fill", 4.5, "Ink node text on primary fill"),
+    ("diagram-node-text", "diagram-node-fill-2", 4.5, "Ink node text on secondary fill"),
+    ("diagram-node-border", "bg-canvas", 3.0, "Ink node boundary on canvas"),
+    ("text-on-accent", "gradient-ember-end", 4.5, "Text on ember gradient end"),
     # Community hubs are non-text node fills on the graph canvas — floor 3.0:1.
     *[
         (f"community-{n}", "bg-canvas", 3.0, f"Community {n} hub on canvas")

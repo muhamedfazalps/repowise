@@ -596,6 +596,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
         data: {
           layer: synthesizeCardLayer(sibling, nodesById),
           kind: "subGroup",
+          sibling: true,
           searchHighlight: sibling.node_ids.some((nid) => searchHighlightIds.has(nid)),
         },
         width: ARCH_NODE_SIZES.layerCluster.width,

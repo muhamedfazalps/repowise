@@ -127,6 +127,7 @@
   /* Mermaid / generated diagrams — blueprint look: ink blocks on a faint
      grid, dashed connectors, brand-orange entry node. */
   --color-diagram-node-fill: #241b2c; /* ink plum block */
+  --color-diagram-node-fill-2: #4a4152; /* recessed gray-plum ink (supporting cast) */
   --color-diagram-node-text: #fbf6f1; /* warm paper on ink */
   --color-diagram-node-border: #241b2c;
   --color-diagram-edge: #4a3d59; /* plum line, dashed */
@@ -303,10 +304,13 @@
   --color-node-undocumented: #6f6678;
   --viz-node-stroke: rgba(222, 210, 235, 0.22);
 
-  /* Mermaid / generated diagrams — dark: raised plum blocks on subtle grid */
+  /* Mermaid / generated diagrams — dark: raised plum blocks on subtle grid.
+     Border alpha 0.45: the boundary (not the fill) carries the 3:1 non-text
+     separation on the near-black canvas — see contrast_check.py. */
   --color-diagram-node-fill: #322a3e;
+  --color-diagram-node-fill-2: #261f30; /* recessed ink (supporting cast) */
   --color-diagram-node-text: #eeeaf4;
-  --color-diagram-node-border: rgba(222, 210, 235, 0.30);
+  --color-diagram-node-border: rgba(222, 210, 235, 0.45);
   --color-diagram-edge: #b3a6c4; /* lavender line, dashed */
   --color-diagram-cluster-border: #a98fc4;
   --color-diagram-grid: rgba(222, 210, 235, 0.05);

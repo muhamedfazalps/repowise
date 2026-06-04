@@ -21,9 +21,10 @@ function PortalNodeImpl(props: NodeProps) {
     useArchitectureStore.getState().drillIntoLayer(targetLayerId);
   };
 
+  // Ghost ink: portals are pointers out of the scope, not members of it.
   const borderColor = selected
     ? THEME.selection.ring
-    : THEME.border.default;
+    : "var(--color-diagram-cluster-border)";
 
   return (
     <div

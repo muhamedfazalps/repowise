@@ -2,7 +2,8 @@
 
 import { memo, useState } from "react";
 import type { NodeProps } from "@xyflow/react";
-import { NodeShell } from "../../graph-primitives/node-shell";
+import { InkNodeShell, type InkRole } from "./ink-node-shell";
+import { getKindIcon } from "./kind-icons";
 import { useArchitectureStore } from "../store/use-architecture-store";
 import { THEME } from "../theme/theme-variables";
 import type { ArchLayer } from "../types";
@@ -15,13 +16,20 @@ export interface LayerClusterNodeProps {
   kind?: "layer" | "subGroup" | undefined;
   /** Visually de-emphasized (Test layer by default — decision 2). */
   demoted?: boolean | undefined;
+  /** Collapsed sibling card in the detail tier — supporting cast, not the
+   * active scope, so it recedes to secondary ink (kg-ux plan §2.2). */
+  sibling?: boolean | undefined;
 }
 
 function LayerClusterNodeImpl(props: NodeProps) {
   const { data, selected } = props as NodeProps & { data: LayerClusterNodeProps };
-  const { layer, searchHighlight, demoted } = data;
+  const { layer, searchHighlight, demoted, sibling } = data;
   const kind = data.kind ?? "layer";
   const [hovered, setHovered] = useState(false);
+
+  // Active-scope cards are primary ink; demoted (Test) and collapsed
+  // siblings recede to secondary ink.
+  const role: InkRole = demoted || sibling ? "secondary" : "primary";
 
   const handleClick = () => {
     const store = useArchitectureStore.getState();
@@ -119,17 +127,19 @@ function LayerClusterNodeImpl(props: NodeProps) {
         transition: "box-shadow 0.2s ease, opacity 0.2s ease",
       }}
     >
-      <NodeShell
-        tone="layerCluster"
+      <InkNodeShell
+        role={role}
+        icon={getKindIcon(kind === "subGroup" ? "subGroup" : "layer")}
+        heroIcon
         kindLabel={kind === "subGroup" ? "GROUP" : "LAYER"}
         title={layer.name}
         subtitle={layer.description}
-        footer={footer}
+        meta={footer}
         selected={selected}
         searchHighlight={searchHighlight}
         width={360}
         height={220}
-        titleFontSize={18}
+        titleFontSize={16}
         subtitleLineClamp={2}
         badges={
           <span style={{
