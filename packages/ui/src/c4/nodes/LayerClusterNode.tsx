@@ -10,15 +10,24 @@ import type { ArchLayer } from "../types";
 export interface LayerClusterNodeProps {
   layer: ArchLayer;
   searchHighlight?: boolean | undefined;
+  /** "layer" (default) drills into the layer; "subGroup" renders the same
+   * card as a curated sub-group and drills into it. Reuse, not a fork. */
+  kind?: "layer" | "subGroup" | undefined;
 }
 
 function LayerClusterNodeImpl(props: NodeProps) {
   const { data, selected } = props as NodeProps & { data: LayerClusterNodeProps };
   const { layer, searchHighlight } = data;
+  const kind = data.kind ?? "layer";
   const [hovered, setHovered] = useState(false);
 
   const handleClick = () => {
-    useArchitectureStore.getState().drillIntoLayer(layer.id);
+    const store = useArchitectureStore.getState();
+    if (kind === "subGroup") {
+      store.drillIntoSubGroup(layer.id);
+    } else {
+      store.drillIntoLayer(layer.id);
+    }
   };
 
   const dominantComplexity = (["complex", "moderate", "simple"] as const)
@@ -100,7 +109,7 @@ function LayerClusterNodeImpl(props: NodeProps) {
     >
       <NodeShell
         tone="layerCluster"
-        kindLabel="LAYER"
+        kindLabel={kind === "subGroup" ? "GROUP" : "LAYER"}
         title={layer.name}
         subtitle={layer.description}
         footer={footer}

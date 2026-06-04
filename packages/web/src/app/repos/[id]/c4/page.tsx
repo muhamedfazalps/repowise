@@ -22,6 +22,7 @@ import {
   archNodeTypes,
   archEdgeTypes,
   SearchBar,
+  ArchBreadcrumb,
   PersonaSelector,
   NodeTypeCategoryFilters,
   FilterPanel,
@@ -48,9 +49,9 @@ import { C4DetailPanelHost } from "@/components/c4/c4-detail-panel-host";
 import { ArchDetailPanelHost } from "@/components/c4/arch-detail-panel-host";
 
 const MODE_VALUES = ["c4", "architecture"] as const;
-const VIEW_VALUES = ["overview", "detail"] as const;
+const VIEW_VALUES = ["overview", "groups", "detail"] as const;
 const PERSONA_VALUES = ["overview", "learn", "deep-dive"] as const;
-const SYNTHETIC_NODE_TYPES = new Set(["layerCluster", "archContainer", "portal"]);
+const SYNTHETIC_NODE_TYPES = new Set(["layerCluster", "subGroupCluster", "archContainer", "portal"]);
 
 function clampLevel(n: number | null): C4Level {
   return n === 1 ? 1 : n === 3 ? 3 : 2;
@@ -97,6 +98,7 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
     parseAsStringLiteral(VIEW_VALUES).withDefault("overview"),
   );
   const [layerParam, setLayerParam] = useQueryState("layer", parseAsString);
+  const [groupParam, setGroupParam] = useQueryState("group", parseAsString);
   const [nodeParam, setNodeParam] = useQueryState("node", parseAsString);
   const [personaParam, setPersonaParam] = useQueryState(
     "persona",
@@ -106,9 +108,11 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
   const setView = useArchitectureStore((s) => s.setView);
   const navigationLevel = useArchitectureStore((s) => s.navigationLevel);
   const activeLayerId = useArchitectureStore((s) => s.activeLayerId);
+  const activeSubGroupId = useArchitectureStore((s) => s.activeSubGroupId);
   const selectedNodeId = useArchitectureStore((s) => s.selectedNodeId);
   const persona = useArchitectureStore((s) => s.persona);
   const drillIntoLayer = useArchitectureStore((s) => s.drillIntoLayer);
+  const drillIntoSubGroup = useArchitectureStore((s) => s.drillIntoSubGroup);
   const selectNode = useArchitectureStore((s) => s.selectNode);
   const setPersona = useArchitectureStore((s) => s.setPersona);
   const setReactFlowInstance = useArchitectureStore((s) => s.setReactFlowInstance);
@@ -129,22 +133,33 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
     if (layerParam) {
       drillIntoLayer(layerParam);
     }
+    if (groupParam) {
+      drillIntoSubGroup(groupParam);
+    }
     if (nodeParam) {
       selectNode(nodeParam);
     }
-  }, [view, layerParam, nodeParam, personaParam, drillIntoLayer, selectNode, setPersona]);
+  }, [view, layerParam, groupParam, nodeParam, personaParam,
+      drillIntoLayer, drillIntoSubGroup, selectNode, setPersona]);
 
   const syncingRef = useRef(false);
   useEffect(() => {
     if (syncingRef.current) return;
     syncingRef.current = true;
-    void setViewParam(navigationLevel === "layer-detail" ? "detail" : "overview");
+    void setViewParam(
+      navigationLevel === "layer-detail"
+        ? "detail"
+        : navigationLevel === "layer-groups"
+          ? "groups"
+          : "overview",
+    );
     void setLayerParam(activeLayerId);
+    void setGroupParam(activeSubGroupId);
     void setNodeParam(selectedNodeId);
     void setPersonaParam(persona);
     syncingRef.current = false;
-  }, [navigationLevel, activeLayerId, selectedNodeId, persona,
-      setViewParam, setLayerParam, setNodeParam, setPersonaParam]);
+  }, [navigationLevel, activeLayerId, activeSubGroupId, selectedNodeId, persona,
+      setViewParam, setLayerParam, setGroupParam, setNodeParam, setPersonaParam]);
 
   useArchitectureNavigation();
 
@@ -236,8 +251,9 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
             <NodeTypeCategoryFilters />
           </div>
         </div>
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-4">
           <SearchBar />
+          <ArchBreadcrumb />
         </div>
       </div>
 

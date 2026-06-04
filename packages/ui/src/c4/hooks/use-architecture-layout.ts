@@ -28,6 +28,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
   const view = useArchitectureStore((s) => s.view);
   const navigationLevel = useArchitectureStore((s) => s.navigationLevel);
   const activeLayerId = useArchitectureStore((s) => s.activeLayerId);
+  const activeSubGroupId = useArchitectureStore((s) => s.activeSubGroupId);
   const detailLevel = useArchitectureStore((s) => s.detailLevel);
   const persona = useArchitectureStore((s) => s.persona);
   const filters = useArchitectureStore((s) => s.filters);
@@ -62,6 +63,9 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
       if (navigationLevel === "overview") {
         return computeOverviewLayout(view);
       }
+      if (navigationLevel === "layer-groups") {
+        return computeLayerGroupsLayout(view);
+      }
       return computeDetailLayout(view);
     };
 
@@ -77,6 +81,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
     view,
     navigationLevel,
     activeLayerId,
+    activeSubGroupId,
     detailLevel,
     persona,
     filters,
@@ -186,6 +191,144 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
     return { nodes, edges, loading: false, issues };
   }
 
+  /** Cards for one curated layer: its sub-groups plus a synthetic card for any
+   * files the curation pass left ungrouped, so every file keeps a home. */
+  function subGroupCards(layer: ArchLayer): { id: string; name: string; node_ids: string[] }[] {
+    const grouped = new Set(layer.sub_groups.flatMap((g) => g.node_ids));
+    const leftovers = layer.node_ids.filter((id) => !grouped.has(id));
+    const cards = layer.sub_groups.map((g) => ({ id: g.id, name: g.name, node_ids: g.node_ids }));
+    if (leftovers.length > 0) {
+      cards.push({ id: `${layer.id}:__ungrouped`, name: "Other files", node_ids: leftovers });
+    }
+    return cards;
+  }
+
+  /** Shape a sub-group card as an ArchLayer so LayerClusterNode renders it
+   * (kind: "subGroup") — reuse, not a new node component. */
+  function synthesizeCardLayer(
+    card: { id: string; name: string; node_ids: string[] },
+    nodesById: Map<string, ArchNode>,
+  ): ArchLayer {
+    const dist: Record<string, number> = { simple: 0, moderate: 0, complex: 0 };
+    for (const id of card.node_ids) {
+      const c = nodesById.get(id)?.complexity ?? "simple";
+      dist[c] = (dist[c] ?? 0) + 1;
+    }
+    return {
+      id: card.id,
+      name: card.name,
+      description: "",
+      node_ids: card.node_ids,
+      file_count: card.node_ids.length,
+      complexity_distribution: dist,
+      health_score: null,
+      sub_groups: [],
+      display_order: 0,
+    };
+  }
+
+  // The intermediate "layer-groups" tier: only sub-group cards + aggregated
+  // arrows + cross-layer portals. Never renders file cards (budget P2).
+  async function computeLayerGroupsLayout(currentView: ArchitectureView): Promise<ArchitectureLayoutResult> {
+    const layer = currentView.layers.find((l: ArchLayer) => l.id === activeLayerId);
+    if (!layer) {
+      return { nodes: [], edges: [], loading: false, issues: [`Layer ${activeLayerId} not found`] };
+    }
+    if (layer.sub_groups.length === 0) {
+      // Layer lost its groups (e.g. filters) — degrade to the detail tier.
+      return computeDetailLayout(currentView);
+    }
+
+    const nodesById = new Map(currentView.nodes.map((n: ArchNode) => [n.id, n]));
+    const cards = subGroupCards(layer);
+
+    const nodeToBox = new Map<string, string>();
+    for (const card of cards) {
+      for (const id of card.node_ids) {
+        nodeToBox.set(id, card.id);
+      }
+    }
+    const aggregated = aggregateEdges(currentView.edges, nodeToBox);
+
+    const nodeIdToLayerId = useArchitectureStore.getState().nodeIdToLayerId;
+    const layerNodeIdSet = new Set(layer.node_ids);
+    const portalSpecs = buildPortalSpecs(
+      currentView.edges, layerNodeIdSet, layer, currentView.layers, nodeIdToLayerId,
+    );
+
+    const cardLayoutNodes = cards.map((card) => ({
+      id: card.id,
+      width: ARCH_NODE_SIZES.layerCluster.width,
+      height: ARCH_NODE_SIZES.layerCluster.height,
+    }));
+    const layoutEdges = aggregated.map((agg) => ({
+      id: agg.id,
+      source: agg.source,
+      target: agg.target,
+    }));
+
+    const { positions, issues } = await computeStage1Layout(
+      [],
+      cardLayoutNodes,
+      portalSpecs,
+      layoutEdges,
+      new Map(),
+    );
+
+    const searchHighlightIds = new Set<string>(searchResults.map((r) => r.nodeId));
+    const nodes: Node[] = cards.map((card) => {
+      const pos = positions.get(card.id) ?? { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        id: card.id,
+        type: "subGroupCluster",
+        position: { x: pos.x, y: pos.y },
+        data: {
+          layer: synthesizeCardLayer(card, nodesById),
+          kind: "subGroup",
+          searchHighlight: card.node_ids.some((nid) => searchHighlightIds.has(nid)),
+        },
+        width: ARCH_NODE_SIZES.layerCluster.width,
+        height: ARCH_NODE_SIZES.layerCluster.height,
+      };
+    });
+
+    for (const portal of portalSpecs) {
+      const pos = positions.get(portal.id) ?? { x: 0, y: 0, width: 0, height: 0 };
+      nodes.push({
+        id: portal.id,
+        type: "portal",
+        position: { x: pos.x, y: pos.y },
+        data: {
+          targetLayerId: portal.targetLayerId,
+          targetLayerName: portal.targetLayerName,
+          edgeCount: portal.edgeCount,
+        },
+        width: ARCH_NODE_SIZES.portal.width,
+        height: ARCH_NODE_SIZES.portal.height,
+      });
+    }
+
+    const edges: Edge[] = aggregated.map((agg) => ({
+      id: agg.id,
+      source: agg.source,
+      target: agg.target,
+      type: "arch",
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 14,
+        height: 14,
+        color: THEME.edge[agg.dominantType] ?? "#8b9dc3",
+      },
+      data: {
+        edge_type: agg.dominantType,
+        count: agg.count,
+        category: agg.dominantType,
+      },
+    }));
+
+    return { nodes, edges, loading: false, issues };
+  }
+
   async function computeDetailLayout(currentView: ArchitectureView): Promise<ArchitectureLayoutResult> {
     const containerLayoutCache = useArchitectureStore.getState().containerLayoutCache;
     const containerSizeMemory = useArchitectureStore.getState().containerSizeMemory;
@@ -194,7 +337,19 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
       return { nodes: [], edges: [], loading: false, issues: [`Layer ${activeLayerId} not found`] };
     }
 
-    const layerNodeIds = new Set(layer.node_ids);
+    // When a curated sub-group is active, file cards are scoped to it and the
+    // sibling groups stay collapsed cards (locked decision 1).
+    let scopeNodeIds = layer.node_ids;
+    let siblingCards: { id: string; name: string; node_ids: string[] }[] = [];
+    const activeCard = activeSubGroupId
+      ? subGroupCards(layer).find((c) => c.id === activeSubGroupId)
+      : undefined;
+    if (activeSubGroupId && activeCard) {
+      scopeNodeIds = activeCard.node_ids;
+      siblingCards = subGroupCards(layer).filter((c) => c.id !== activeSubGroupId);
+    }
+
+    const layerNodeIds = new Set(scopeNodeIds);
     let layerNodes = currentView.nodes.filter((n: ArchNode) => layerNodeIds.has(n.id));
 
     layerNodes = filterByPersona(layerNodes);
@@ -210,7 +365,10 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
 
     // Curated sub-groups from the artifact drive grouping (P3); folder /
     // community heuristics remain the fallback for uncurated layers (P6).
-    const containers = buildContainers(layerNodes, currentView.edges, "curated", layer.sub_groups);
+    // Inside one sub-group the heuristics regroup its files.
+    const containers = activeCard
+      ? buildContainers(layerNodes, currentView.edges, "auto")
+      : buildContainers(layerNodes, currentView.edges, "curated", layer.sub_groups);
     const standaloneIds = getStandaloneNodeIds(layerNodes, containers);
 
     const nodeIdToLayerId = useArchitectureStore.getState().nodeIdToLayerId;
@@ -225,6 +383,13 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
     for (const id of standaloneIds) {
       nodeToBox.set(id, id);
     }
+    // Sibling groups absorb their members so in-layer cross-group edges
+    // aggregate into one labelled arrow per visible card pair (P2).
+    for (const sibling of siblingCards) {
+      for (const id of sibling.node_ids) {
+        nodeToBox.set(id, sibling.id);
+      }
+    }
 
     const aggregated = aggregateEdges(currentView.edges, nodeToBox);
 
@@ -234,6 +399,13 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
       const sizes = ARCH_NODE_SIZES[nodeType as keyof typeof ARCH_NODE_SIZES] ?? ARCH_NODE_SIZES.file;
       return { id, width: sizes.width, height: sizes.height };
     });
+    for (const sibling of siblingCards) {
+      standaloneLayoutNodes.push({
+        id: sibling.id,
+        width: ARCH_NODE_SIZES.layerCluster.width,
+        height: ARCH_NODE_SIZES.layerCluster.height,
+      });
+    }
 
     const stage1Edges = aggregated.map((agg) => ({
       id: agg.id,
@@ -335,6 +507,22 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
         data: buildArchFileData(node, searchHighlightIds, selectedConnectedNodes),
         width: sizes.width,
         height: sizes.height,
+      });
+    }
+
+    for (const sibling of siblingCards) {
+      const pos = stage1Positions.get(sibling.id) ?? { x: 0, y: 0, width: 0, height: 0 };
+      allNodes.push({
+        id: sibling.id,
+        type: "subGroupCluster",
+        position: { x: pos.x, y: pos.y },
+        data: {
+          layer: synthesizeCardLayer(sibling, nodesById),
+          kind: "subGroup",
+          searchHighlight: sibling.node_ids.some((nid) => searchHighlightIds.has(nid)),
+        },
+        width: ARCH_NODE_SIZES.layerCluster.width,
+        height: ARCH_NODE_SIZES.layerCluster.height,
       });
     }
 

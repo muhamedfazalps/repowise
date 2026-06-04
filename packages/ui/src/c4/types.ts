@@ -191,7 +191,7 @@ export interface ArchitectureView {
 // Architecture store types
 // ---------------------------------------------------------------------------
 
-export type NavigationLevel = "overview" | "layer-detail";
+export type NavigationLevel = "overview" | "layer-groups" | "layer-detail";
 export type Persona = "overview" | "learn" | "deep-dive";
 export type DetailLevel = "file" | "class" | "symbol";
 export type SearchMode = "fuzzy" | "semantic";
