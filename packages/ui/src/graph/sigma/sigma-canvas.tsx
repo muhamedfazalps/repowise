@@ -190,7 +190,7 @@ export const SigmaCanvas = forwardRef<SigmaCanvasHandle, SigmaCanvasProps>(
           className="w-full h-full"
           style={{
             background:
-              props.graphTheme === "dark" ? "#0f0f1a" : "transparent",
+              props.graphTheme === "dark" ? "var(--color-bg-canvas)" : "transparent",
             cursor: "grab",
           }}
         />

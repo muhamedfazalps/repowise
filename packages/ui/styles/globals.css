@@ -150,6 +150,25 @@
   --color-edge-implements: #c85aa0; /* warm magenta */
   --color-edge-co-change: #7c5cc4;
 
+  /* Community families — 12 warm/plum-anchored hues for graph clustering.
+     `hub` colors mid-size nodes (community centroids), `-soft` tints
+     satellites. One cool counterpoint (slate blue / deep teal) is deliberate
+     for 12-way distinguishability. Resolved at runtime by getCommunityFamily
+     in shared/use-theme-tokens.ts; verified against --color-bg-canvas in
+     docs/design/contrast_check.py. LIGHT values here; `.dark` overrides below. */
+  --color-community-1: #c0641a;  --color-community-1-soft: #f7a94d;  /* brand orange (deepened for 3:1 on warm canvas) */
+  --color-community-2: #58436c;  --color-community-2-soft: #826aa0;  /* plum */
+  --color-community-3: #b23a2e;  --color-community-3-soft: #cf6a55;  /* terracotta */
+  --color-community-4: #6b7a3d;  --color-community-4-soft: #90a05e;  /* olive/sage */
+  --color-community-5: #b06a86;  --color-community-5-soft: #cf93ab;  /* dusty rose */
+  --color-community-6: #4a5d7a;  --color-community-6-soft: #71849f;  /* slate blue */
+  --color-community-7: #a8821f;  --color-community-7-soft: #c9a544;  /* gold */
+  --color-community-8: #8a7a66;  --color-community-8-soft: #a89882;  /* taupe */
+  --color-community-9: #7a2f4a;  --color-community-9-soft: #9e5570;  /* wine */
+  --color-community-10: #b85a38; --color-community-10-soft: #eba585; /* peach (deepened for 3:1 on warm canvas) */
+  --color-community-11: #2f6b66; --color-community-11-soft: #558f89; /* deep teal */
+  --color-community-12: #5e5360; --color-community-12-soft: #84778a; /* charcoal mauve */
+
   /* C4 / graph canvas surfaces — consumed via the `THEME` object in
      c4/graph-primitives, which can't see component classes. Previously these
      names were undefined, so the canvas fell back to hardcoded dark navy in
@@ -306,6 +325,21 @@
 
   /* Edge hue that isn't a pure var() derivation gets a dark-legible tweak */
   --color-edge-inherits: #a98fc4; /* plum-300 reads better on dark */
+
+  /* Community families — dark variants (lifted/desaturated to read on the
+     near-black plum canvas; soft = a deeper in-family tint for satellites). */
+  --color-community-1: #f59520;  --color-community-1-soft: #c97a1a;  /* brand orange */
+  --color-community-2: #a98fc4;  --color-community-2-soft: #7d659c;  /* plum */
+  --color-community-3: #e06a5a;  --color-community-3-soft: #b04c3e;  /* terracotta */
+  --color-community-4: #a9bb6f;  --color-community-4-soft: #7e8f4e;  /* olive/sage */
+  --color-community-5: #d795b1;  --color-community-5-soft: #a86a87;  /* dusty rose */
+  --color-community-6: #8fa3c0;  --color-community-6-soft: #66799a;  /* slate blue */
+  --color-community-7: #d9b04a;  --color-community-7-soft: #a8821f;  /* gold */
+  --color-community-8: #b8a68e;  --color-community-8-soft: #8a7a66;  /* taupe */
+  --color-community-9: #c4708f;  --color-community-9-soft: #94506a;  /* wine */
+  --color-community-10: #eba585; --color-community-10-soft: #c4734f; /* peach */
+  --color-community-11: #6fb3ab; --color-community-11-soft: #4a8780; /* deep teal */
+  --color-community-12: #a79db3; --color-community-12-soft: #786f84; /* charcoal mauve */
 
   /* Deep shadows with a neutral inset hairline for premium depth */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);

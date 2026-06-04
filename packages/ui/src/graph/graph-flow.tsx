@@ -965,6 +965,7 @@ export function GraphFlow(props: GraphFlowProps) {
             onToggleAllCommunities={handleToggleAllCommunities}
             visibleEdgeTypes={visibleEdgeTypes}
             onEdgeTypeToggle={handleEdgeTypeToggle}
+            graphTheme={graphTheme}
           />
         </div>
 

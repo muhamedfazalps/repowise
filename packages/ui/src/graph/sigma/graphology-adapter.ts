@@ -16,9 +16,13 @@ import {
   CURVED_EDGE_THRESHOLD,
   getScaledNodeSize,
   getNodeMass,
-  getCommunityColor,
   languageColor,
 } from "./constants";
+
+// Build-time placeholder for module/community node fills. The theme-aware
+// community palette is applied by use-sigma's color effect (per light/dark);
+// this neutral keeps modules visible for the one frame before that runs.
+const PLACEHOLDER_NODE_COLOR = EDGE_COLORS.dynamic;
 import { groupNodesAsModules } from "../elk-layout";
 
 function simpleHash(str: string): number {
@@ -357,7 +361,9 @@ export function moduleGraphToGraphology(
 
       const baseSize = getScaledNodeSize(NODE_BASE_SIZES.module, nodeCount);
       const size = baseSize * (0.5 + Math.min(Math.log2(Math.max(mod.file_count, 1)) * 0.3, 1.5));
-      const color = getCommunityColor(communityId);
+      // Theme-aware community hub color is applied later by use-sigma; this is a
+      // neutral placeholder for the initial (pre-effect) frame.
+      const color = PLACEHOLDER_NODE_COLOR;
 
       result.addNode(mod.module_id, {
         x,

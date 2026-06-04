@@ -3,7 +3,8 @@
 import { useState, memo } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LANGUAGE_COLORS } from "../lib/confidence";
-import { EDGE_COLORS, getCommunityColor } from "./sigma/constants";
+import { edgeColorsForTheme } from "./sigma/constants";
+import { useCommunityFamilies } from "../shared/use-theme-tokens";
 import type { ColorMode, ViewMode } from "./graph-toolbar";
 
 const LANGUAGE_LEGEND = [
@@ -28,6 +29,7 @@ interface GraphLegendProps {
   onToggleAllCommunities?: (selectAll: boolean) => void;
   visibleEdgeTypes?: Set<string> | undefined;
   onEdgeTypeToggle?: ((edgeType: string) => void) | undefined;
+  graphTheme?: "light" | "dark" | undefined;
 }
 
 export const GraphLegend = memo(function GraphLegend({
@@ -42,8 +44,11 @@ export const GraphLegend = memo(function GraphLegend({
   onToggleAllCommunities,
   visibleEdgeTypes,
   onEdgeTypeToggle,
+  graphTheme = "dark",
 }: GraphLegendProps) {
   const [expanded, setExpanded] = useState(false);
+  const communityFamily = useCommunityFamilies();
+  const edgeColors = edgeColorsForTheme(graphTheme);
 
   return (
     <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-overlay)]/80 backdrop-blur-sm text-xs shadow-lg shadow-black/20 min-w-[120px] max-w-[150px]">
@@ -97,7 +102,7 @@ export const GraphLegend = memo(function GraphLegend({
                 )}
                 {entries
                   ? entries.map(([cid, label], i) => {
-                      const color = getCommunityColor(cid);
+                      const color = communityFamily(cid).hub;
                       const checked = !activeCommunities || activeCommunities.has(cid);
                       return (
                         <div
@@ -138,7 +143,7 @@ export const GraphLegend = memo(function GraphLegend({
                       <div key={i} className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
                         <span
                           className="w-2 h-2 rounded-full shrink-0"
-                          style={{ background: getCommunityColor(i) }}
+                          style={{ background: communityFamily(i).hub }}
                         />
                         <span>Community {i + 1}</span>
                       </div>
@@ -170,11 +175,11 @@ export const GraphLegend = memo(function GraphLegend({
                 Edges
               </p>
               {([
-                { type: "import", label: "Imports", color: EDGE_COLORS.import },
-                { type: "crossCommunity", label: "Cross-community", color: EDGE_COLORS.crossCommunity },
-                { type: "internal", label: "Internal", color: EDGE_COLORS.internal },
-                { type: "dynamic", label: "Dynamic", color: EDGE_COLORS.dynamic },
-                { type: "lowConfidence", label: "Low confidence", color: EDGE_COLORS.lowConfidence },
+                { type: "import", label: "Imports", color: edgeColors.import },
+                { type: "crossCommunity", label: "Cross-community", color: edgeColors.crossCommunity },
+                { type: "internal", label: "Internal", color: edgeColors.internal },
+                { type: "dynamic", label: "Dynamic", color: edgeColors.dynamic },
+                { type: "lowConfidence", label: "Low confidence", color: edgeColors.lowConfidence },
               ] as const).map((et) => {
                 const checked = visibleEdgeTypes.has(et.type);
                 return (

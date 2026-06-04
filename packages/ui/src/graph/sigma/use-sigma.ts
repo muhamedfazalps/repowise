@@ -10,9 +10,11 @@ import {
   LABEL_GRID_CELL_SIZE,
   getLabelDensity,
   getLabelRenderedSizeThreshold,
-  getCommunityColor,
+  edgeColorsForTheme,
+  type EdgeKind,
   languageColor,
 } from "./constants";
+import { getCommunityFamily, resolveToken, useThemeVersion } from "../../shared/use-theme-tokens";
 
 // ---- Color helpers (kept minimal — avoid regex in hot paths) ----
 
@@ -29,6 +31,35 @@ const THEME_COLORS = {
   dark:  { bg: [18, 18, 28] as const, text: "#f5f5f7", subtitle: "#888888", tooltip: "#12121c" },
   light: { bg: [250, 250, 252] as const, text: "#1a1a2e", subtitle: "#666666", tooltip: "#ffffff" },
 };
+
+/**
+ * Theme-aware viz colors resolved from the live design tokens. Read on the
+ * React side (where getComputedStyle works) and keyed to the theme version, so
+ * canvas painting tracks light/dark. Mirrors the per-theme THEME_COLORS shape.
+ */
+interface VizPalette {
+  risk: { high: string; medium: string; low: string };
+  hotspot: string;
+  decision: string;
+  label: string;
+  pathHighlight: string;
+  edge: Record<EdgeKind, string>;
+}
+
+function resolveVizPalette(theme: "light" | "dark"): VizPalette {
+  return {
+    risk: {
+      high: resolveToken("--color-risk-high", "#b23a2e"),
+      medium: resolveToken("--color-risk-medium", "#9a6614"),
+      low: resolveToken("--color-risk-low", "#1d8155"),
+    },
+    hotspot: resolveToken("--color-warning", "#9a6614"),
+    decision: resolveToken("--color-warning", "#9a6614"),
+    label: resolveToken("--color-text-secondary", theme === "dark" ? "#a79db3" : "#5e5360"),
+    pathHighlight: resolveToken("--color-accent-fill", "#f59520"),
+    edge: edgeColorsForTheme(theme),
+  };
+}
 
 let activeBg: readonly [number, number, number] = THEME_COLORS.dark.bg;
 
@@ -119,6 +150,11 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
     clearColorCaches();
   }
 
+  // Re-resolve theme tokens (risk / hotspot / community / edge / label) when the
+  // theme flips so the canvas repaints in the active palette.
+  const themeVersion = useThemeVersion();
+  const vizRef = useRef<VizPalette>(resolveVizPalette(options.graphTheme));
+
   const sigmaRef = useRef<Sigma | null>(null);
   const [sigmaReady, setSigmaReady] = useState<Sigma | null>(null);
   const selectedRef = useRef<string | null>(null);
@@ -169,6 +205,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
   useEffect(() => {
     const graph = options.graph;
     if (!graph || graph.order === 0) return;
+    const viz = (vizRef.current = resolveVizPalette(options.graphTheme));
     const cm = options.colorMode;
     graph.updateEachNodeAttributes(
       (_node, attrs) => {
@@ -176,22 +213,50 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
         if (cm === "language") {
           color = languageColor(attrs.language || "other");
         } else if (cm === "community") {
-          color = getCommunityColor(attrs.communityId);
+          // Modules (centroids) get the hub hue; files use the softer satellite
+          // tint so leaves recede behind their community's anchor.
+          const family = getCommunityFamily(attrs.communityId);
+          color = attrs.nodeType === "module" ? family.hub : family.satellite;
         } else {
           const risk = attrs.pagerank * 3;
-          color = risk > 0.7 ? "#ef4444" : risk > 0.3 ? "#f59e0b" : "#22c55e";
+          color = risk > 0.7 ? viz.risk.high : risk > 0.3 ? viz.risk.medium : viz.risk.low;
         }
         if (attrs.isDead) color = desaturateColor(color, 0.6);
-        if (attrs.isHotspot) color = tintColor(color, "#f97316", 0.4);
-        // Decision-anchored files get a subtle amber tint so they're
+        if (attrs.isHotspot) color = tintColor(color, viz.hotspot, 0.4);
+        // Decision-anchored files get a subtle warm tint so they're
         // discoverable on the canvas without dominating it.
-        if (attrs.hasDecision) color = tintColor(color, "#f59e0b", 0.25);
+        if (attrs.hasDecision) color = tintColor(color, viz.decision, 0.25);
         if (attrs.color === color) return attrs;
         return { ...attrs, color };
       },
       { attributes: ["color"] },
     );
-  }, [options.colorMode, options.graph]);
+  }, [options.colorMode, options.graph, options.graphTheme, themeVersion]);
+
+  // Re-color edges by semantic kind for the active theme (canvas can't resolve
+  // var()). Build-time colors are placeholders; this is the source of truth.
+  useEffect(() => {
+    const graph = options.graph;
+    if (!graph || graph.size === 0) return;
+    const edge = (vizRef.current = resolveVizPalette(options.graphTheme)).edge;
+    graph.updateEachEdgeAttributes(
+      (_edgeKey, attrs) => {
+        const color = edge[attrs.edgeKind] ?? edge.import;
+        if (attrs.color === color) return attrs;
+        return { ...attrs, color };
+      },
+      { attributes: ["color"] },
+    );
+  }, [options.graph, options.graphTheme, themeVersion]);
+
+  // Keep the label color in the active text token when the theme flips.
+  useEffect(() => {
+    const sigma = sigmaRef.current;
+    if (!sigma) return;
+    const label = (vizRef.current = resolveVizPalette(options.graphTheme)).label;
+    sigma.setSetting("labelColor", { color: label });
+    sigma.refresh();
+  }, [options.graphTheme, themeVersion]);
 
   // Initialize Sigma (dynamic import to avoid SSR WebGL crash)
   useEffect(() => {
@@ -224,7 +289,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
         labelDensity: getLabelDensity(graph.order),
         labelGridCellSize: LABEL_GRID_CELL_SIZE,
         labelRenderedSizeThreshold: getLabelRenderedSizeThreshold(graph.order),
-        labelColor: { color: "#e4e4ed" },
+        labelColor: { color: vizRef.current.label },
         defaultNodeColor: "#6b7280",
         defaultEdgeColor: "#2a2a3a",
         defaultEdgeType: "curved",
@@ -370,7 +435,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
 
           if (pathEdges.size > 0) {
             if (pathEdges.has(edge)) {
-              return { ...data, color: "#f59e0b", size: Math.max(3, (data.size || 1) * 3), zIndex: 2 };
+              return { ...data, color: vizRef.current.pathHighlight, size: Math.max(3, (data.size || 1) * 3), zIndex: 2 };
             }
             if (pathNodes.size > 0 && graph) {
               const [source, target] = graph.extremities(edge);

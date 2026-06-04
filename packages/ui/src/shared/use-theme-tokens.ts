@@ -16,7 +16,7 @@
  * keyed on the theme version so the values track the active theme.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 /** Read a single CSS custom property off <html>, resolved to its computed value. */
 export function resolveToken(name: string, fallback = ""): string {
@@ -46,4 +46,61 @@ export function useThemeVersion(): number {
     return () => observer.disconnect();
   }, []);
   return version;
+}
+
+// --------------------------------------------------------------------------
+// Community families (graph clustering palette)
+// --------------------------------------------------------------------------
+
+/** Number of community families defined in globals.css (`--color-community-1..N`). */
+export const COMMUNITY_FAMILY_COUNT = 12;
+
+/** A resolved community color pair: `hub` for centroids, `satellite` for leaves. */
+export interface CommunityFamily {
+  hub: string;
+  satellite: string;
+}
+
+/**
+ * Resolve the warm community family for a given community id, cycling through
+ * the 12 `--color-community-*` token pairs. Reads the *computed* tokens so the
+ * canvas gets theme-correct hex. Call inside an effect/memo keyed on
+ * {@link useThemeVersion} so values track the active theme. On SSR (no window)
+ * the token resolves to "" and the satellite falls back to the hub.
+ */
+export function getCommunityFamily(communityId: number): CommunityFamily {
+  const n = (((communityId % COMMUNITY_FAMILY_COUNT) + COMMUNITY_FAMILY_COUNT) %
+    COMMUNITY_FAMILY_COUNT) + 1;
+  const resolved = resolveTokens({
+    hub: `--color-community-${n}`,
+    satellite: `--color-community-${n}-soft`,
+  });
+  return {
+    hub: resolved.hub,
+    satellite: resolved.satellite || resolved.hub,
+  };
+}
+
+/**
+ * Hook variant: returns a stable `getCommunityFamily`-style resolver that
+ * re-reads the computed tokens whenever the theme flips. Use in renderers that
+ * paint community colors to a canvas/library so they repaint on light/dark
+ * switch (mirrors the Mermaid/C4 token-resolution pattern).
+ */
+export function useCommunityFamilies(): (communityId: number) => CommunityFamily {
+  const version = useThemeVersion();
+  return useMemo(() => {
+    // Pre-resolve all 12 families once per theme version; the returned closure
+    // is a cheap cyclic lookup with no per-call getComputedStyle cost.
+    void version;
+    const families: CommunityFamily[] = [];
+    for (let i = 0; i < COMMUNITY_FAMILY_COUNT; i++) {
+      families.push(getCommunityFamily(i));
+    }
+    return (communityId: number) => {
+      const idx = (((communityId % COMMUNITY_FAMILY_COUNT) + COMMUNITY_FAMILY_COUNT) %
+        COMMUNITY_FAMILY_COUNT);
+      return families[idx] ?? families[0] ?? { hub: "", satellite: "" };
+    };
+  }, [version]);
 }

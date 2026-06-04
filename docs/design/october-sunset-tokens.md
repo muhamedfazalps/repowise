@@ -110,6 +110,47 @@ Gradients are for hero washes, primary CTAs, brand marks, empty-state art, and
 selected/active accents — never behind body text. Text over gradients uses
 `--color-text-on-accent` / `--color-text-inverse` with a verified ≥4.5:1 floor.
 
+## Community families (graph clustering palette)
+
+The dependency graph colors nodes by their detected community. Instead of a
+fixed jewel-tone array (cool, garish, identical in both themes), there are
+**12 warm/plum-anchored families**, each a `hub` (centroid / module nodes) and
+a softer `-soft` satellite tint (leaf files). The graph cycles `community_id %
+12`. One cool counterpoint (slate blue #6, deep teal #11) is deliberate for
+12-way distinguishability.
+
+These are tokens (`--color-community-1..12` + `-soft`) in `globals.css`, resolved
+at runtime by `getCommunityFamily` / `useCommunityFamilies` in
+`shared/use-theme-tokens.ts` (the canvas can't resolve `var()`, so it reads the
+computed token per theme and repaints on theme flip — same mechanism as Mermaid
+/ C4 / `THEME_COLORS`).
+
+**Usage rule:** module/centroid nodes use `hub`; file/leaf nodes use the
+`-soft` satellite so leaves recede behind their community anchor. Edge colors
+use the separate per-theme `EDGE_COLORS_BY_THEME` (import = orange,
+crossCommunity = plum, internal = sage/green), mirroring `lib/confidence.ts`.
+
+| # | Family | Light hub / soft | Dark hub / soft |
+|---|--------|------------------|-----------------|
+| 1 | Brand orange | `#C0641A` / `#F7A94D` | `#F59520` / `#C97A1A` |
+| 2 | Plum | `#58436C` / `#826AA0` | `#A98FC4` / `#7D659C` |
+| 3 | Terracotta | `#B23A2E` / `#CF6A55` | `#E06A5A` / `#B04C3E` |
+| 4 | Olive/sage | `#6B7A3D` / `#90A05E` | `#A9BB6F` / `#7E8F4E` |
+| 5 | Dusty rose | `#B06A86` / `#CF93AB` | `#D795B1` / `#A86A87` |
+| 6 | Slate blue | `#4A5D7A` / `#71849F` | `#8FA3C0` / `#66799A` |
+| 7 | Gold | `#A8821F` / `#C9A544` | `#D9B04A` / `#A8821F` |
+| 8 | Taupe | `#8A7A66` / `#A89882` | `#B8A68E` / `#8A7A66` |
+| 9 | Wine | `#7A2F4A` / `#9E5570` | `#C4708F` / `#94506A` |
+| 10 | Peach | `#B85A38` / `#EBA585` | `#EBA585` / `#C4734F` |
+| 11 | Deep teal | `#2F6B66` / `#558F89` | `#6FB3AB` / `#4A8780` |
+| 12 | Charcoal mauve | `#5E5360` / `#84778A` | `#A79DB3` / `#786F84` |
+
+Hub-on-canvas contrast is gated at **≥ 3.0:1** (non-text UI) in both modes —
+families #1 (orange) and #10 (peach) were deepened in **light** to clear the
+floor on the warm paper canvas (`#F4EAE1`): orange `#F59520 → #C0641A`
+(1.92 → 3.49), peach `#D9825F → #B85A38` (2.42 → 3.88). The `-soft` satellites
+are not gated (they sit behind hubs, never alone as the only signal).
+
 ## Contrast matrix (generated)
 
 <!-- Regenerate with: python3 docs/design/contrast_check.py -->
@@ -133,6 +174,18 @@ selected/active accents — never behind body text. Text over gradients uses
 | Error text on card | 5.94 | 4.5 | PASS |
 | Info text on card | 8.63 | 4.5 | PASS |
 | Active border on card | 3.59 | 3.0 | PASS |
+| Community 1 hub on canvas | 3.49 | 3.0 | PASS |
+| Community 2 hub on canvas | 7.27 | 3.0 | PASS |
+| Community 3 hub on canvas | 5.00 | 3.0 | PASS |
+| Community 4 hub on canvas | 3.95 | 3.0 | PASS |
+| Community 5 hub on canvas | 3.37 | 3.0 | PASS |
+| Community 6 hub on canvas | 5.64 | 3.0 | PASS |
+| Community 7 hub on canvas | 3.01 | 3.0 | PASS |
+| Community 8 hub on canvas | 3.50 | 3.0 | PASS |
+| Community 9 hub on canvas | 7.59 | 3.0 | PASS |
+| Community 10 hub on canvas | 3.88 | 3.0 | PASS |
+| Community 11 hub on canvas | 5.18 | 3.0 | PASS |
+| Community 12 hub on canvas | 6.14 | 3.0 | PASS |
 
 ### Dark mode
 | Pair | Ratio | Floor | Result |
@@ -153,5 +206,17 @@ selected/active accents — never behind body text. Text over gradients uses
 | Error text on card | 5.09 | 4.5 | PASS |
 | Info text on card | 5.91 | 4.5 | PASS |
 | Active border on card | 3.13 | 3.0 | PASS |
+| Community 1 hub on canvas | 8.41 | 3.0 | PASS |
+| Community 2 hub on canvas | 6.78 | 3.0 | PASS |
+| Community 3 hub on canvas | 5.83 | 3.0 | PASS |
+| Community 4 hub on canvas | 9.17 | 3.0 | PASS |
+| Community 5 hub on canvas | 8.07 | 3.0 | PASS |
+| Community 6 hub on canvas | 7.47 | 3.0 | PASS |
+| Community 7 hub on canvas | 9.38 | 3.0 | PASS |
+| Community 8 hub on canvas | 8.12 | 3.0 | PASS |
+| Community 9 hub on canvas | 5.54 | 3.0 | PASS |
+| Community 10 hub on canvas | 9.37 | 3.0 | PASS |
+| Community 11 hub on canvas | 7.97 | 3.0 | PASS |
+| Community 12 hub on canvas | 7.42 | 3.0 | PASS |
 
-**32 pairs · 0 failures.**
+**56 pairs · 0 failures.**
