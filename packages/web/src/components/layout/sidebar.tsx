@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
+import { BrandLogo } from "./brand-logo";
 import {
   LayoutDashboard,
   Activity,
@@ -121,13 +121,7 @@ export function Sidebar({ repos = [], activeRepoId, workspace }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-14 items-center gap-3 px-4">
-        <Image
-          src="/repowise-logo.png"
-          alt="repowise"
-          width={28}
-          height={28}
-          className="shrink-0 drop-shadow-[0_0_8px_rgba(245,149,32,0.3)]"
-        />
+        <BrandLogo size={28} />
         {!isIconOnly && (
           <span className="text-base font-semibold text-[var(--color-text-primary)] tracking-tight flex-1 truncate">
             repowise
