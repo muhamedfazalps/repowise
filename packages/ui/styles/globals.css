@@ -405,10 +405,14 @@
 }
 
 .dark {
-  /* Dark keeps the solid ink blocks — no photo texture. Declared AFTER the
-     :root block so the cascade is unambiguous (same pattern as
-     color-scheme below). */
-  --kg-card-texture: none;
+  /* Dark mode keeps the texture too (user pick, 2026-06-05): the same
+     photo under a heavy plum-ink wash — 0.85 alpha of the ink fill
+     (#322a3e), so the crumple/ruled lines read as subtle relief while
+     --color-kg-node-text stays ≥4.5:1 (composite ≈ #4D4658, pair in
+     contrast_check.py). Declared AFTER the :root block so the cascade is
+     unambiguous (same pattern as color-scheme below). */
+  --kg-card-texture: linear-gradient(rgba(50, 42, 62, 0.85), rgba(50, 42, 62, 0.85)),
+    url("/kg-card-paper.jpg");
 }
 
 /* -------------------------------------------------------------------- */

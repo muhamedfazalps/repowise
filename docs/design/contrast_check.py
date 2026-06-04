@@ -109,6 +109,9 @@ LIGHT = {
     "kg-node-text": "#241B2C",
     "kg-node-border": "#241B2C",
     "kg-node-border-2": "#8C7F88",
+    # Textured face composite: 0.78 warm-white wash over the paper photo
+    # (avg ~#E6E8E9) — what text actually sits on.
+    "kg-node-face-textured": "#FAF8F4",
     # Community family hubs (light) — graph clustering palette.
     "community-1": "#C0641A",  "community-2": "#58436C",  "community-3": "#B23A2E",
     "community-4": "#6B7A3D",  "community-5": "#B06A86",  "community-6": "#4A5D7A",
@@ -148,6 +151,8 @@ DARK = {
     "kg-node-text": "#EEEAF4",
     "kg-node-border": "rgba(222,210,235,0.45)",
     "kg-node-border-2": "rgba(222,210,235,0.45)",
+    # Textured face composite: 0.85 ink wash (#322A3E) over the paper photo.
+    "kg-node-face-textured": "#4D4658",
     # Community family hubs (dark) — lifted to read on the near-black canvas.
     "community-1": "#F59520",  "community-2": "#A98FC4",  "community-3": "#E06A5A",
     "community-4": "#A9BB6F",  "community-5": "#D795B1",  "community-6": "#8FA3C0",
@@ -182,6 +187,7 @@ CHECKS = [
     ("kg-node-text", "kg-node-fill-2", 4.5, "KG card text on secondary face"),
     ("kg-node-border", "bg-canvas", 3.0, "KG card outline on canvas"),
     ("kg-node-border-2", "bg-canvas", 3.0, "KG supporting outline on canvas"),
+    ("kg-node-text", "kg-node-face-textured", 4.5, "KG card text on textured face"),
     ("text-on-accent", "gradient-ember-end", 4.5, "Text on ember gradient end"),
     # Community hubs are non-text node fills on the graph canvas — floor 3.0:1.
     *[
