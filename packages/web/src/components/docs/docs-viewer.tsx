@@ -208,7 +208,7 @@ function AtAGlance({ repoId, targetPath }: { repoId: string; targetPath: string 
       </div>
       <div className="flex flex-wrap gap-1.5">
         {data.is_hotspot && (
-          <Badge variant="outline" className="text-[10px] border-amber-400/40 text-amber-300/90">
+          <Badge variant="outline" className="text-[10px] border-[var(--color-warning)]/40 text-[var(--color-warning)]">
             <Flame className="h-2.5 w-2.5 mr-1" />
             Hotspot · top {churnTop}%
           </Badge>
@@ -217,7 +217,7 @@ function AtAGlance({ repoId, targetPath }: { repoId: string; targetPath: string 
           <Badge variant="outline" className="text-[10px]">Stable</Badge>
         )}
         {data.bus_factor === 1 && (
-          <Badge variant="outline" className="text-[10px] border-amber-400/40 text-amber-300/90">
+          <Badge variant="outline" className="text-[10px] border-[var(--color-warning)]/40 text-[var(--color-warning)]">
             Bus factor 1
           </Badge>
         )}
@@ -616,8 +616,8 @@ function DocsViewerBody({
 
             {/* Low-confidence flag */}
             {page.confidence > 0 && page.confidence < 0.5 && (
-              <div className="mb-4 flex items-start gap-1.5 rounded-md border border-amber-400/30 bg-amber-50/5 px-3 py-2">
-                <span className="text-xs text-amber-300/90">
+              <div className="mb-4 flex items-start gap-1.5 rounded-md border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-3 py-2">
+                <span className="text-xs text-[var(--color-text-primary)]">
                   This page was generated with low confidence — verify against the source before relying on it.
                 </span>
               </div>
@@ -717,13 +717,13 @@ function DocsViewerBody({
 
             {/* Metadata warnings */}
             {Array.isArray(page.metadata?.hallucination_warnings) && (page.metadata.hallucination_warnings as string[]).length > 0 && (
-              <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-50/5 px-4 py-3">
-                <p className="text-xs font-medium text-amber-400 mb-1.5">
+              <div className="mt-4 rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-4 py-3">
+                <p className="text-xs font-medium text-[var(--color-warning)] mb-1.5">
                   Possible inaccuracies detected
                 </p>
                 <ul className="space-y-0.5">
                   {(page.metadata.hallucination_warnings as string[]).map((w, i) => (
-                    <li key={i} className="text-xs text-amber-300/80 font-mono">
+                    <li key={i} className="text-xs text-[var(--color-text-secondary)] font-mono">
                       {String(w)}
                     </li>
                   ))}

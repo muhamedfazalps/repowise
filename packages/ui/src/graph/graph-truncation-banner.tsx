@@ -34,11 +34,11 @@ export function GraphTruncationBanner({
       role="status"
       aria-live="polite"
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-300",
+        "flex items-center gap-3 rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 px-3 py-2 text-[12px] text-[var(--color-text-primary)]",
         className,
       )}
     >
-      <AlertTriangle className="h-4 w-4 shrink-0" />
+      <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--color-warning)]" />
       <p className="min-w-0 flex-1">
         Showing <span className="font-semibold tabular-nums">{formatNumber(shown)}</span> of{" "}
         <span className="font-semibold tabular-nums">{formatNumber(total)}</span> nodes — the
@@ -50,7 +50,7 @@ export function GraphTruncationBanner({
             size="sm"
             variant="ghost"
             onClick={onSwitchToArchitecture}
-            className="h-7 px-2 text-[11px] text-amber-200 hover:bg-amber-500/20 hover:text-amber-100"
+            className="h-7 px-2 text-[11px] font-medium text-[var(--color-warning)] hover:bg-[var(--color-warning)]/15 hover:text-[var(--color-warning)]"
           >
             Switch to Architecture
           </Button>
@@ -60,7 +60,7 @@ export function GraphTruncationBanner({
             size="sm"
             variant="ghost"
             onClick={onLoadAll}
-            className="h-7 px-2 text-[11px] text-amber-200 hover:bg-amber-500/20 hover:text-amber-100"
+            className="h-7 px-2 text-[11px] font-medium text-[var(--color-warning)] hover:bg-[var(--color-warning)]/15 hover:text-[var(--color-warning)]"
           >
             Load all
           </Button>
