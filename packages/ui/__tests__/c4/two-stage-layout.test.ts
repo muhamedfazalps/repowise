@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  assignSlotsByRank,
   computeStage1Layout,
   computeStage2Layout,
   repairElkInput,
@@ -141,5 +142,54 @@ describe("computeStage2Layout", () => {
     expect(result.positions.size).toBe(0);
     expect(result.actualSize.width).toBe(0);
     expect(result.actualSize.height).toBe(0);
+  });
+});
+
+describe("assignSlotsByRank (curated display_order, plan B-4)", () => {
+  function pos(x: number, y: number) {
+    return { x, y, width: 360, height: 220 };
+  }
+
+  it("re-ranks card slots even when edges stacked them the other way", () => {
+    // ELK stacked persistence above ui (edge persistence → ui); the curated
+    // ranks say ui(0) < service(1) < persistence(2) top→bottom.
+    const positions = new Map([
+      ["layer:persistence", pos(20, 40)],
+      ["layer:ui", pos(20, 340)],
+      ["layer:service", pos(20, 640)],
+    ]);
+    const ranks = new Map([
+      ["layer:ui", 0],
+      ["layer:service", 1],
+      ["layer:persistence", 2],
+    ]);
+    const out = assignSlotsByRank(positions, ranks);
+    expect(out.get("layer:ui")!.y).toBeLessThan(out.get("layer:service")!.y);
+    expect(out.get("layer:service")!.y).toBeLessThan(out.get("layer:persistence")!.y);
+    // The slot set itself is preserved — only the occupants change.
+    const ys = [...out.values()].map((p) => p.y).sort((a, b) => a - b);
+    expect(ys).toEqual([40, 340, 640]);
+  });
+
+  it("reads same-row slots left→right by rank", () => {
+    const positions = new Map([
+      ["b", pos(440, 40)],
+      ["a", pos(20, 40)],
+      ["c", pos(20, 340)],
+    ]);
+    const ranks = new Map([["a", 0], ["b", 1], ["c", 2]]);
+    const out = assignSlotsByRank(positions, ranks);
+    expect(out.get("a")).toEqual(pos(20, 40));
+    expect(out.get("b")).toEqual(pos(440, 40));
+    expect(out.get("c")).toEqual(pos(20, 340));
+  });
+
+  it("leaves unranked entries (portals) and tiny inputs untouched", () => {
+    const positions = new Map([
+      ["layer:a", pos(20, 40)],
+      ["portal:x", { x: 500, y: 40, width: 180, height: 60 }],
+    ]);
+    const out = assignSlotsByRank(positions, new Map([["layer:a", 0]]));
+    expect(out).toEqual(positions);
   });
 });

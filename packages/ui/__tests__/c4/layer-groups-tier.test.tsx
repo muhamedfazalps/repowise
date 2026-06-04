@@ -117,6 +117,37 @@ describe("store: layer-groups navigation", () => {
   });
 });
 
+describe("layout: curated overview stacking", () => {
+  it("stacks layer cards by display_order, not edge direction", async () => {
+    const view = createCuratedView();
+    // Curated order says API (0) above Core (1); add a contrarian edge
+    // core → api that unseeded ELK would stack the other way.
+    view.edges = [
+      ...view.edges,
+      {
+        source: "src/models.py",
+        target: "src/app.py",
+        edge_type: "imports",
+        direction: "forward",
+        weight: 1,
+        confidence: 1,
+      },
+    ];
+    act(() => {
+      store.getState().setView(view);
+    });
+    const { result } = renderHook(() => useArchitectureLayout());
+
+    await waitFor(() => {
+      expect(result.current.nodes.length).toBeGreaterThan(0);
+    });
+
+    const api = result.current.nodes.find((n) => n.id === "layer:api")!;
+    const core = result.current.nodes.find((n) => n.id === "layer:core")!;
+    expect(api.position.y).toBeLessThan(core.position.y);
+  });
+});
+
 describe("layout: layer-groups tier", () => {
   it("renders only sub-group cards (+ portals) — never file cards", async () => {
     act(() => {

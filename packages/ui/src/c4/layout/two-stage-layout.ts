@@ -88,6 +88,34 @@ export function estimateContainerSize(childCount: number): { width: number; heig
   return { width, height };
 }
 
+/** Re-assign uniform card slots so reading order (top→bottom, left→right)
+ * follows the curated rank (position = meaning, viewer plan B-4).
+ *
+ * ELK's layered algorithm stacks by edge direction, which on real graphs can
+ * contradict the artifact's dependency order (and elkjs partitioning is
+ * unreliable once edges exist). Since the ranked cards are uniformly sized,
+ * permuting which card occupies which slot is safe and deterministic; edge
+ * paths follow automatically because the renderer draws from node positions.
+ * Unranked entries (portals, …) keep their slots. */
+export function assignSlotsByRank(
+  positions: Map<string, { x: number; y: number; width: number; height: number }>,
+  ranks: Map<string, number>,
+): Map<string, { x: number; y: number; width: number; height: number }> {
+  const rankedIds = [...positions.keys()].filter((id) => ranks.has(id));
+  if (rankedIds.length < 2) return positions;
+
+  const slots = rankedIds
+    .map((id) => positions.get(id)!)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const order = [...rankedIds].sort(
+    (a, b) => ranks.get(a)! - ranks.get(b)! || a.localeCompare(b),
+  );
+
+  const out = new Map(positions);
+  order.forEach((id, i) => out.set(id, slots[i]!));
+  return out;
+}
+
 export async function computeStage1Layout(
   containers: ContainerAtom[],
   standaloneNodes: { id: string; width: number; height: number }[],

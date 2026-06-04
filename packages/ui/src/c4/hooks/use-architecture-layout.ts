@@ -8,6 +8,7 @@ import { PERSONA_NODE_TYPES } from "../types";
 import { buildContainers, getStandaloneNodeIds } from "../layout/containers";
 import { aggregateEdges, capAggregatedEdges } from "../layout/edge-aggregation";
 import {
+  assignSlotsByRank,
   computeStage1Layout,
   computeStage2Layout,
   estimateContainerSize,
@@ -150,13 +151,27 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
       target: agg.target,
     }));
 
-    const { positions, issues } = await computeStage1Layout(
+    // Curated artifacts carry a dependency-ordered display_order — re-rank
+    // the card slots so the stack reads top→bottom in that order (position =
+    // meaning). Uncurated views keep the edge-derived stacking untouched
+    // (P6): their display_order is just insertion order, not a claim.
+    const isCurated =
+      currentView.layers.some((l: ArchLayer) => l.sub_groups.length > 0) ||
+      currentView.entry_points.length > 0;
+
+    const { positions: rawPositions, issues } = await computeStage1Layout(
       [],
       layerNodes,
       [],
       layoutEdges,
       new Map(),
     );
+    const positions = isCurated
+      ? assignSlotsByRank(
+          rawPositions,
+          new Map(displayLayers.map((l: ArchLayer) => [l.id, l.display_order])),
+        )
+      : rawPositions;
 
     const searchHighlightIds = new Set<string>(searchResults.map((r) => r.nodeId));
     const nodes: Node[] = displayLayers.map((layer: ArchLayer) => {
