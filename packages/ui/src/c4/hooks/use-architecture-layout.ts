@@ -208,7 +208,9 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
     const visibleNodeIds = new Set(layerNodes.map((n: ArchNode) => n.id));
     const nodesById = new Map(currentView.nodes.map((n: ArchNode) => [n.id, n]));
 
-    const containers = buildContainers(layerNodes, currentView.edges, "auto");
+    // Curated sub-groups from the artifact drive grouping (P3); folder /
+    // community heuristics remain the fallback for uncurated layers (P6).
+    const containers = buildContainers(layerNodes, currentView.edges, "curated", layer.sub_groups);
     const standaloneIds = getStandaloneNodeIds(layerNodes, containers);
 
     const nodeIdToLayerId = useArchitectureStore.getState().nodeIdToLayerId;

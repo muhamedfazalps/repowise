@@ -1,13 +1,22 @@
-import type { ArchNode, ArchEdge } from "../types";
+import type { ArchNode, ArchEdge, ArchSubGroup } from "../types";
 import type { ContainerAtom } from "./two-stage-layout";
+
+export type ContainerStrategy = "curated" | "folder" | "community" | "auto";
 
 export function buildContainers(
   nodes: ArchNode[],
   _edges: ArchEdge[],
-  strategy: "folder" | "community" | "auto",
+  strategy: ContainerStrategy,
+  subGroups?: ArchSubGroup[],
 ): ContainerAtom[] {
-  const resolved = resolveStrategy(strategy, nodes);
+  // Curated grouping comes from the artifact (P3); folder/community heuristics
+  // remain the fallback when curation is off or the layer has no sub-groups.
+  if (strategy === "curated" && subGroups && subGroups.length > 0) {
+    const curated = buildCuratedContainers(nodes, subGroups);
+    if (curated.length > 0) return curated;
+  }
 
+  const resolved = resolveStrategy(strategy, nodes);
   if (resolved === "folder") {
     return buildFolderContainers(nodes);
   }
@@ -15,13 +24,35 @@ export function buildContainers(
 }
 
 function resolveStrategy(
-  strategy: "folder" | "community" | "auto",
+  strategy: ContainerStrategy,
   nodes: ArchNode[],
 ): "folder" | "community" {
   if (strategy === "folder") return "folder";
   if (strategy === "community") return "community";
   const withPath = nodes.filter((n) => n.file_path !== null).length;
   return withPath / Math.max(nodes.length, 1) > 0.8 ? "folder" : "community";
+}
+
+function buildCuratedContainers(
+  nodes: ArchNode[],
+  subGroups: ArchSubGroup[],
+): ContainerAtom[] {
+  const visible = new Set(nodes.map((n) => n.id));
+
+  const containers: ContainerAtom[] = [];
+  for (const group of subGroups) {
+    // id/name verbatim from the artifact; members limited to visible nodes
+    // (persona / detail-level / user filters run upstream).
+    const childNodeIds = group.node_ids.filter((id) => visible.has(id));
+    if (childNodeIds.length <= 1) continue;
+    containers.push({
+      id: group.id,
+      label: group.name,
+      childNodeIds,
+    });
+  }
+
+  return containers;
 }
 
 function buildFolderContainers(nodes: ArchNode[]): ContainerAtom[] {
