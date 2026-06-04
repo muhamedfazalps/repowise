@@ -36,6 +36,8 @@ export interface SigmaCanvasProps {
   highlightedEdges: Set<string>;
   searchDimmedNodes: Set<string> | null;
   communityDimmedNodes: Set<string> | null;
+  /** Constellation blossom: clusters dimmed to ~35% while a hub is expanded. */
+  expandDimmedNodes?: Set<string> | null | undefined;
   colorMode: ColorMode;
   activeSignals: Set<Signal>;
   graphTheme: "light" | "dark";
@@ -79,6 +81,7 @@ export const SigmaCanvas = forwardRef<SigmaCanvasHandle, SigmaCanvasProps>(
       highlightedEdges: props.highlightedEdges,
       searchDimmedNodes: props.searchDimmedNodes,
       communityDimmedNodes: props.communityDimmedNodes,
+      expandDimmedNodes: props.expandDimmedNodes,
       colorMode: props.colorMode,
       activeSignals: props.activeSignals,
       graphTheme: props.graphTheme,

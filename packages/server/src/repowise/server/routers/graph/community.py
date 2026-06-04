@@ -10,17 +10,28 @@ from repowise.core.persistence import crud
 from repowise.core.persistence.models import GraphEdge, GraphNode
 from repowise.server.deps import get_db_session
 from repowise.server.mcp_server._graph_utils import community_cohesion, community_label
-from repowise.server.routers.graph._common import with_repo
-from repowise.server.routers.graph.signals import _EMPTY_SIGNALS, _collect_node_signals
+from repowise.server.routers.graph._common import _edge_response, with_repo
+from repowise.server.routers.graph.signals import (
+    _EMPTY_SIGNALS,
+    _collect_node_signals,
+    _node_to_response,
+)
 from repowise.server.schemas import (
     ArchitectureEdgeResponse,
     ArchitectureGraphResponse,
     ArchitectureNodeResponse,
     CommunityDetailResponse,
     CommunityMember,
+    CommunitySliceNodeResponse,
+    CommunitySliceResponse,
     CommunitySummaryItem,
     NeighboringCommunity,
 )
+
+# Cap on slice member nodes. Communities are small relative to the repo, but a
+# few mega-clusters exist; this keeps the blossom payload in the 50-300 target
+# band and the satellite layout responsive.
+_SLICE_MEMBER_CAP = 300
 
 router = APIRouter()
 
@@ -120,6 +131,89 @@ async def architecture_graph(
     ]
 
     return ArchitectureGraphResponse(nodes=arch_nodes, edges=arch_edges)
+
+
+@router.get(
+    "/{repo_id}/communities/{community_id}/slice",
+    response_model=CommunitySliceResponse,
+)
+async def community_slice(
+    repo_id: str,
+    community_id: int,
+    member_limit: int = Query(_SLICE_MEMBER_CAP, ge=1, le=600),
+    session: AsyncSession = Depends(get_db_session),  # noqa: B008
+    _repo: object = Depends(with_repo),
+) -> CommunitySliceResponse:
+    """Return a single community's sub-graph for the constellation blossom.
+
+    Payload = the community's member file nodes, the edges among them, and a
+    thin ring of one-hop *boundary stubs*: neighbor nodes outside the community
+    that share an edge with a member, returned as minimal nodes flagged
+    ``is_boundary=true`` so cross-cluster edges can render without dragging the
+    whole neighbor cluster in. Sized to ~50-300 nodes.
+    """
+    members = await crud.get_community_members(
+        session, repo_id, community_id, node_type="file", limit=member_limit + 1
+    )
+    truncated = len(members) > member_limit
+    if truncated:
+        members = members[:member_limit]
+    member_ids = {m.node_id for m in members}
+
+    # Edges touching any member: among-members stay; member<->outside become
+    # cross-cluster links that pull in a boundary stub for the outside endpoint.
+    edge_result = await session.execute(select(GraphEdge).where(GraphEdge.repository_id == repo_id))
+    kept_edges: list[GraphEdge] = []
+    boundary_ids: set[str] = set()
+    for e in edge_result.scalars():
+        src_in = e.source_node_id in member_ids
+        tgt_in = e.target_node_id in member_ids
+        if not src_in and not tgt_in:
+            continue
+        kept_edges.append(e)
+        if not src_in:
+            boundary_ids.add(e.source_node_id)
+        if not tgt_in:
+            boundary_ids.add(e.target_node_id)
+
+    # Resolve boundary stub rows (minimal: just need a node row to render).
+    boundary_nodes: list[GraphNode] = []
+    if boundary_ids:
+        stub_result = await session.execute(
+            select(GraphNode).where(
+                GraphNode.repository_id == repo_id,
+                GraphNode.node_id.in_(boundary_ids),
+            )
+        )
+        boundary_nodes = list(stub_result.scalars().all())
+    resolved_boundary = {n.node_id for n in boundary_nodes}
+
+    # Drop edges whose outside endpoint has no resolvable node (orphan ref).
+    visible_ids = member_ids | resolved_boundary
+    links = [
+        _edge_response(e)
+        for e in kept_edges
+        if e.source_node_id in visible_ids and e.target_node_id in visible_ids
+    ]
+
+    # Member signals only (boundary stubs stay minimal / all-false signals).
+    signals = await _collect_node_signals(session, repo_id, list(member_ids))
+    nodes = [
+        _node_to_response(m, signals.get(m.node_id, _EMPTY_SIGNALS), CommunitySliceNodeResponse)
+        for m in members
+    ]
+    nodes.extend(
+        _node_to_response(n, _EMPTY_SIGNALS, CommunitySliceNodeResponse, is_boundary=True)
+        for n in boundary_nodes
+    )
+
+    return CommunitySliceResponse(
+        nodes=nodes,
+        links=links,
+        community_id=community_id,
+        member_count=len(members),
+        truncated=truncated,
+    )
 
 
 @router.get("/{repo_id}/communities", response_model=list[CommunitySummaryItem])

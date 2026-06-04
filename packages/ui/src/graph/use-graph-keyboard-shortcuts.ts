@@ -11,6 +11,9 @@ interface GraphKeyboardShortcutOptions {
   setCtxMenu: Dispatch<SetStateAction<GraphCtxMenu | null>>;
   setCommunityPanelId: Dispatch<SetStateAction<number | null>>;
   setColorMode: Dispatch<SetStateAction<ColorMode>>;
+  /** Optional Escape pre-handler. Return true to consume the keystroke and skip
+   *  the default clear (used to collapse one constellation hub per Esc). */
+  onEscape?: (() => boolean) | undefined;
 }
 
 /**
@@ -27,6 +30,7 @@ export function useGraphKeyboardShortcuts(opts: GraphKeyboardShortcutOptions): v
     setCtxMenu,
     setCommunityPanelId,
     setColorMode,
+    onEscape,
   } = opts;
 
   useEffect(() => {
@@ -41,6 +45,11 @@ export function useGraphKeyboardShortcuts(opts: GraphKeyboardShortcutOptions): v
           sigmaRef.current?.fitView();
           break;
         case "Escape":
+          // Collapse one expanded hub per Esc before the default clear.
+          if (onEscape?.()) {
+            e.preventDefault();
+            break;
+          }
           setSelectedNodeId(null);
           setEgoDepth(0);
           setSearchQuery("");
@@ -83,5 +92,6 @@ export function useGraphKeyboardShortcuts(opts: GraphKeyboardShortcutOptions): v
     setCtxMenu,
     setCommunityPanelId,
     setColorMode,
+    onEscape,
   ]);
 }

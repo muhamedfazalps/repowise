@@ -13,6 +13,7 @@ import {
   useDeadCodeGraph,
   useHotFilesGraph,
   useCommunities,
+  useCommunitySlices,
   useExecutionFlows,
 } from "@/lib/hooks/use-graph";
 import { useRepo } from "@/lib/hooks/use-repo";
@@ -24,6 +25,7 @@ import type {
   ExecutionFlows,
   CommunitySummaryItem,
   ArchitectureGraph,
+  CommunitySlice,
 } from "@repowise-dev/types/graph";
 
 type ViewMode = "module" | "full" | "architecture" | "dead" | "hotfiles" | "unified";
@@ -59,6 +61,9 @@ export function GraphFlow({
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode ?? "architecture");
   const [modulePath, setModulePath] = useState<string[]>([]);
   const [hasExpandedModules, setHasExpandedModules] = useState(false);
+  // Currently-expanded constellation hubs (community ids). Drives the slice
+  // fetch; the shell owns the actual expand/collapse interaction state.
+  const [expandedHubs, setExpandedHubs] = useState<number[]>([]);
   const isDrilledDown = modulePath.length > 0;
   const isModuleView = viewMode === "module";
 
@@ -78,6 +83,12 @@ export function GraphFlow({
   );
   const { graph: hotGraph, isLoading: hotLoading } = useHotFilesGraph(
     viewMode === "hotfiles" ? repoId : null,
+  );
+  // Member slices for expanded hubs — only fetched in the constellation scope
+  // and only while at least one hub is open (conditional SWR inside the hook).
+  const { slices: constellationSlices } = useCommunitySlices(
+    viewMode === "architecture" ? repoId : null,
+    expandedHubs,
   );
   const { repo } = useRepo(repoId);
   const resolvedRepoName = repoName ?? repo?.name;
@@ -103,6 +114,8 @@ export function GraphFlow({
       isLoadingArchitectureGraph={archLoading}
       constellationGraph={constellationGraph as ArchitectureGraph | undefined}
       isLoadingConstellationGraph={constellationLoading}
+      constellationSlices={constellationSlices as Map<number, CommunitySlice> | undefined}
+      onExpandedHubsChange={setExpandedHubs}
       {...(resolvedRepoName ? { repoName: resolvedRepoName } : {})}
       deadCodeGraph={deadGraph as GraphExport | undefined}
       isLoadingDeadCodeGraph={deadLoading}

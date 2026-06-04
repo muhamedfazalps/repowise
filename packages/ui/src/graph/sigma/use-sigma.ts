@@ -128,6 +128,9 @@ export interface UseSigmaOptions {
   highlightedEdges: Set<string>;
   searchDimmedNodes: Set<string> | null;
   communityDimmedNodes: Set<string> | null;
+  /** Constellation blossom: non-expanded clusters dimmed to ~35% while a hub
+   *  is expanded, so the open cluster reads as foreground. */
+  expandDimmedNodes?: Set<string> | null | undefined;
   colorMode: ColorMode;
   activeSignals: Set<Signal>;
   graphTheme: "light" | "dark";
@@ -162,6 +165,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
   const highlightedEdgesRef = useRef<Set<string>>(new Set());
   const searchDimmedRef = useRef<Set<string> | null>(null);
   const communityDimmedRef = useRef<Set<string> | null>(null);
+  const expandDimmedRef = useRef<Set<string> | null>(null);
   const hiddenNodesRef = useRef<Set<string> | undefined>(undefined);
   const graphRef = useRef<Graph<
     SigmaNodeAttributes,
@@ -175,6 +179,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
     highlightedEdgesRef.current = options.highlightedEdges;
     searchDimmedRef.current = options.searchDimmedNodes;
     communityDimmedRef.current = options.communityDimmedNodes;
+    expandDimmedRef.current = options.expandDimmedNodes ?? null;
     hiddenNodesRef.current = options.hiddenNodes;
     sigmaRef.current?.refresh();
   }, [
@@ -183,6 +188,7 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
     options.highlightedEdges,
     options.searchDimmedNodes,
     options.communityDimmedNodes,
+    options.expandDimmedNodes,
     options.hiddenNodes,
   ]);
 
@@ -503,14 +509,27 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
           const pathNodes = highlightedPathRef.current;
           const searchDimmed = searchDimmedRef.current;
           const communityDimmed = communityDimmedRef.current;
+          const expandDimmed = expandDimmedRef.current;
 
           // Fast path: nothing active — return data unchanged, zero allocation
-          if (!selected && pathNodes.size === 0 && !searchDimmed && !communityDimmed) {
+          if (
+            !selected &&
+            pathNodes.size === 0 &&
+            !searchDimmed &&
+            !communityDimmed &&
+            !expandDimmed
+          ) {
             return data;
           }
 
           if (searchDimmed?.has(node)) {
             return { ...data, color: dimColor(data.color, 0.12), size: (data.size || 6) * 0.5, zIndex: 0 };
+          }
+
+          // Blossom dim: other clusters recede to ~35% (size unchanged so the
+          // unexpanded constellation stays legible underneath).
+          if (expandDimmed?.has(node)) {
+            return { ...data, color: dimColor(data.color, 0.35), zIndex: 0 };
           }
 
           if (communityDimmed?.has(node)) {

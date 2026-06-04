@@ -20,6 +20,7 @@ const EMPTY_STRING_SET = new Set<string>();
 // build in chunks off the critical path (see sigmaGraph below).
 const ASYNC_BUILD_THRESHOLD = 1000;
 import { useExpandedModules } from "./use-expanded-modules";
+import { useExpandedHubs } from "./use-expanded-hubs";
 import { traceToEdgeKeys } from "./graph-flow-helpers";
 import { useGraphContextMenu } from "./use-graph-context-menu";
 import { useGraphSearch } from "./use-graph-search";
@@ -35,6 +36,7 @@ import type {
   ExecutionFlows,
   CommunitySummaryItem,
   ArchitectureGraph,
+  CommunitySlice,
 } from "@repowise-dev/types/graph";
 import { SigmaCanvas, type SigmaCanvasHandle } from "./sigma/sigma-canvas";
 import {
@@ -43,7 +45,11 @@ import {
   moduleGraphToGraphology,
   groupFilesAsModules,
 } from "./sigma/graphology-adapter";
-import { architectureToGraphology, hubNodeId } from "./sigma/constellation-adapter";
+import {
+  architectureToGraphology,
+  hubNodeId,
+  mergeCommunitySlice,
+} from "./sigma/constellation-adapter";
 import { computeRadialLayout } from "./sigma/radial-layout";
 import type { SigmaNodeAttributes, SigmaEdgeAttributes } from "./sigma/types";
 import type GraphologyGraph from "graphology";
@@ -66,6 +72,12 @@ export interface GraphFlowProps {
   /** Community super-graph for the constellation (radial Knowledge Graph) scope. */
   constellationGraph?: ArchitectureGraph | undefined;
   isLoadingConstellationGraph?: boolean;
+  /** Member slices for currently-expanded hubs, keyed by community_id. The host
+   *  fetches these in response to {@link onExpandedHubsChange}. */
+  constellationSlices?: Map<number, CommunitySlice> | undefined;
+  /** Fired when the set of expanded constellation hubs changes, so the host can
+   *  fetch the corresponding slices. */
+  onExpandedHubsChange?: (expanded: number[]) => void;
   /** Repo name for the constellation core label. */
   repoName?: string;
   deadCodeGraph: GraphExport | undefined;
@@ -106,6 +118,8 @@ export function GraphFlow(props: GraphFlowProps) {
     isLoadingFullGraph,
     constellationGraph,
     isLoadingConstellationGraph,
+    constellationSlices,
+    onExpandedHubsChange,
     repoName,
     deadCodeGraph,
     isLoadingDeadCodeGraph,
@@ -176,6 +190,15 @@ export function GraphFlow(props: GraphFlowProps) {
   const { expandedModules, toggleModule, collapseAll } = useExpandedModules();
   const hasExpandedModules = expandedModules.size > 0;
 
+  // Expand/collapse constellation hubs (radial blossom). Esc collapses the most
+  // recently expanded hub; multiple hubs may be open at once.
+  const { expandedHubs, toggleHub, expandHub, collapseLast, collapseAll: collapseAllHubs } =
+    useExpandedHubs();
+
+  useEffect(() => {
+    onExpandedHubsChange?.(expandedHubs);
+  }, [expandedHubs, onExpandedHubsChange]);
+
   // Legacy drill-down (breadcrumb nav, kept for deep-dive via context menu)
   const [modulePath, setModulePath] = useState<string[]>([]);
   const currentPrefix = modulePath.length > 0 ? (modulePath[modulePath.length - 1] ?? "") : "";
@@ -218,16 +241,33 @@ export function GraphFlow(props: GraphFlowProps) {
     [onCommunityPanelOpen],
   );
 
-  // Legend / hub click in the constellation: ease the camera onto the hub,
-  // select it, and surface the community in the existing detail panel.
+  // Legend click in the constellation: expand the hub's blossom, ease the
+  // camera onto it, and surface the community in the existing detail panel.
+  // (G4 makes expand the primary action; focus + panel are retained.)
   const handleConstellationHubClick = useCallback(
     (cid: number) => {
       const nodeId = hubNodeId(cid);
+      expandHub(cid);
       setSelectedNodeId(nodeId);
       sigmaRef.current?.focusNode(nodeId);
       openCommunityPanel(cid);
     },
-    [openCommunityPanel],
+    [openCommunityPanel, expandHub],
+  );
+
+  // Hub *node* click toggles the blossom: expand (focus + panel) or collapse.
+  const handleConstellationHubToggle = useCallback(
+    (cid: number) => {
+      const willExpand = !expandedHubs.includes(cid);
+      toggleHub(cid);
+      if (willExpand) {
+        const nodeId = hubNodeId(cid);
+        setSelectedNodeId(nodeId);
+        sigmaRef.current?.focusNode(nodeId);
+        openCommunityPanel(cid);
+      }
+    },
+    [expandedHubs, toggleHub, openCommunityPanel],
   );
 
   // ---- Derived state ----
@@ -237,10 +277,38 @@ export function GraphFlow(props: GraphFlowProps) {
   const isConstellation = viewMode === "architecture";
 
   // Constellation graph: one hub per community + repo-core, radial positions.
+  // When hubs are expanded, blossom each one's member slice as satellites
+  // (deterministic radial math, no FA2). Rebuilt fresh each time (the adapter
+  // is pure + the merge mutates only the new instance), so the memo stays pure.
   const constellationSigmaGraph = useMemo(() => {
     if (!isConstellation || !constellationGraph) return null;
-    return architectureToGraphology(constellationGraph, repoName ? { repoName } : {});
-  }, [isConstellation, constellationGraph, repoName]);
+    const graph = architectureToGraphology(
+      constellationGraph,
+      repoName ? { repoName } : {},
+    );
+    if (constellationSlices) {
+      for (const cid of expandedHubs) {
+        const slice = constellationSlices.get(cid);
+        if (slice) mergeCommunitySlice(graph, cid, slice);
+      }
+    }
+    return graph;
+  }, [isConstellation, constellationGraph, repoName, expandedHubs, constellationSlices]);
+
+  // Nodes to dim while any hub is expanded: every hub disc NOT in the expanded
+  // set (and the repo-core), so the open cluster(s) read as foreground. Reuses
+  // the dimColor machinery via the dedicated expand-dim channel.
+  const expandDimmedNodes = useMemo(() => {
+    if (!isConstellation || expandedHubs.length === 0 || !constellationGraph) {
+      return null;
+    }
+    const expandedSet = new Set(expandedHubs);
+    const dimmed = new Set<string>();
+    for (const n of constellationGraph.nodes) {
+      if (!expandedSet.has(n.community_id)) dimmed.add(hubNodeId(n.community_id));
+    }
+    return dimmed;
+  }, [isConstellation, expandedHubs, constellationGraph]);
 
   // Ring radii for the depth-ring underlay (graph coordinates).
   const constellationRingRadii = useMemo(() => {
@@ -669,11 +737,11 @@ export function GraphFlow(props: GraphFlowProps) {
 
   const handleSigmaNodeClick = useCallback(
     (nodeId: string, nodeType: string) => {
-      // Constellation hub click → focus + open community panel (G4 adds expand).
+      // Constellation hub click → toggle the radial blossom (expand/collapse).
       if (nodeType === "hub" && sigmaGraph?.hasNode(nodeId)) {
         const cid = sigmaGraph.getNodeAttribute(nodeId, "communityId");
         if (typeof cid === "number" && cid >= 0) {
-          handleConstellationHubClick(cid);
+          handleConstellationHubToggle(cid);
           return;
         }
       }
@@ -685,7 +753,7 @@ export function GraphFlow(props: GraphFlowProps) {
         setSelectedNodeId(nodeId);
       }
     },
-    [selectedNodeId, sigmaGraph, handleConstellationHubClick],
+    [selectedNodeId, sigmaGraph, handleConstellationHubToggle],
   );
 
   const handleSigmaNodeContextMenu = useCallback(
@@ -700,6 +768,16 @@ export function GraphFlow(props: GraphFlowProps) {
     [setCtxMenu],
   );
 
+  // Esc collapses the most recently expanded constellation hub (one per press),
+  // consuming the keystroke so the default clear only fires once all hubs close.
+  const handleEscapeCollapse = useCallback((): boolean => {
+    if (isConstellation && expandedHubs.length > 0) {
+      collapseLast();
+      return true;
+    }
+    return false;
+  }, [isConstellation, expandedHubs.length, collapseLast]);
+
   // Global keyboard shortcuts (f/Escape/1-3//, cmd+k)
   useGraphKeyboardShortcuts({
     sigmaRef,
@@ -709,6 +787,7 @@ export function GraphFlow(props: GraphFlowProps) {
     setCtxMenu,
     setCommunityPanelId,
     setColorMode,
+    onEscape: handleEscapeCollapse,
   });
 
   const handlePathFound = useCallback(
@@ -743,8 +822,10 @@ export function GraphFlow(props: GraphFlowProps) {
     setHighlightedPath(new Set());
     setHighlightedEdges(new Set());
     setSelectedNodeId(null);
+    // Leaving the constellation collapses any open blossoms.
+    if (v !== "architecture") collapseAllHubs();
     onViewModeChange?.(v);
-  }, [onViewModeChange]);
+  }, [onViewModeChange, collapseAllHubs]);
 
   const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
     setLayoutMode(mode);
@@ -861,6 +942,7 @@ export function GraphFlow(props: GraphFlowProps) {
             highlightedEdges={highlightedEdges}
             searchDimmedNodes={searchDimmedNodes}
             communityDimmedNodes={communityDimmedNodes}
+            expandDimmedNodes={isConstellation ? expandDimmedNodes : null}
             colorMode={colorMode}
             activeSignals={activeSignals}
             graphTheme={graphTheme}

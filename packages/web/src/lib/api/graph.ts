@@ -3,6 +3,7 @@ import type {
   ArchitectureGraphResponse,
   CallersCalleesResponse,
   CommunityDetailResponse,
+  CommunitySliceResponse,
   CommunitySummaryItem,
   DeadCodeGraphResponse,
   EgoGraphResponse,
@@ -112,6 +113,20 @@ export async function getCommunityDetail(
   return apiGet<CommunityDetailResponse>(
     `/api/graph/${repoId}/communities/${communityId}`,
     params,
+  );
+}
+
+/**
+ * Constellation blossom slice: a single community's member file nodes, the
+ * edges among them, and one-hop boundary stubs (neighbor nodes flagged
+ * `is_boundary`) so cross-cluster edges render. Fetched on hub expand.
+ */
+export async function getCommunitySlice(
+  repoId: string,
+  communityId: number,
+): Promise<CommunitySliceResponse> {
+  return apiGet<CommunitySliceResponse>(
+    `/api/graph/${repoId}/communities/${communityId}/slice`,
   );
 }
 
