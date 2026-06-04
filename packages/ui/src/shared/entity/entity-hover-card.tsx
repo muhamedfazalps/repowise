@@ -209,10 +209,10 @@ function Pill({
 }) {
   const cls =
     tone === "error"
-      ? "border-red-500/40 bg-red-500/10 text-red-400"
+      ? "border-[var(--color-error)]/40 bg-[var(--color-error)]/10 text-[var(--color-error)]"
       : tone === "warn"
-        ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
-        : "border-sky-500/40 bg-sky-500/10 text-sky-400";
+        ? "border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 text-[var(--color-warning)]"
+        : "border-[var(--color-info)]/40 bg-[var(--color-info)]/10 text-[var(--color-info)]";
   return (
     <span
       className={cn(
