@@ -135,7 +135,7 @@ function Row({ title, sub }: { title: string; sub?: string }) {
 
 function KV({ k, v }: { k: string; v: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderTop: "1px solid rgba(148,163,184,0.15)" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderTop: "1px solid var(--color-bg-wash-hover)" }}>
       <span style={{ opacity: 0.6 }}>{k}</span>
       <span style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}>{v}</span>
     </div>

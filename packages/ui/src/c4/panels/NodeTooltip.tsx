@@ -104,9 +104,9 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
                 borderRadius: 10,
                 fontSize: 10,
                 fontWeight: 500,
-                background: "rgba(148,163,184,0.15)",
+                background: "var(--color-bg-wash-hover)",
                 color: "var(--color-text-secondary, #94a3b8)",
-                border: "1px solid rgba(148,163,184,0.2)",
+                border: "1px solid var(--color-border-default)",
               }}
             >
               {tag}

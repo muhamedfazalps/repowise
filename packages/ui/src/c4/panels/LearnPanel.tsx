@@ -80,7 +80,7 @@ export function LearnPanel() {
                     justifyContent: "center",
                     fontSize: 9,
                     fontWeight: 600,
-                    background: "rgba(148,163,184,0.15)",
+                    background: "var(--color-bg-wash-hover)",
                     flexShrink: 0,
                   }}
                 >
@@ -113,7 +113,7 @@ export function LearnPanel() {
           style={{
             height: 3,
             borderRadius: 2,
-            background: "rgba(148,163,184,0.15)",
+            background: "var(--color-bg-wash-hover)",
             marginBottom: 12,
             overflow: "hidden",
           }}
@@ -198,7 +198,7 @@ export function LearnPanel() {
                 background:
                   i === currentTourStep
                     ? "var(--color-accent-primary, #f59520)"
-                    : "rgba(148,163,184,0.3)",
+                    : "var(--color-border-default)",
                 border: "none",
                 cursor: "pointer",
                 padding: 0,

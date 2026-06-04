@@ -32,7 +32,7 @@ export function C4Legend() {
               height: 10,
               borderRadius: 2,
               background: it.color,
-              border: "1px solid rgba(148,163,184,0.4)",
+              border: "1px solid var(--color-border-default)",
             }}
           />
           {it.label}

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export function Section({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div style={{ padding: "10px 12px", borderBottom: "1px solid rgba(148,163,184,0.12)" }}>
+    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border-subtle)" }}>
       {title && (
         <div
           style={{
@@ -43,7 +43,7 @@ export function KVList({ rows }: { rows: [string, string][] }) {
             justifyContent: "space-between",
             gap: 8,
             padding: "3px 0",
-            borderTop: "1px solid rgba(148,163,184,0.12)",
+            borderTop: "1px solid var(--color-border-subtle)",
             fontSize: 11,
           }}
         >
@@ -116,7 +116,7 @@ export function Badge({
         fontWeight: 600,
         letterSpacing: 0.4,
         color: color ?? "#ffffff",
-        background: bg ?? "rgba(148,163,184,0.2)",
+        background: bg ?? "var(--color-border-default)",
         textTransform: "uppercase",
       }}
     >
@@ -134,9 +134,9 @@ export function Pill({ label }: { label: string }) {
         borderRadius: 10,
         fontSize: 10,
         fontWeight: 500,
-        background: "rgba(148,163,184,0.15)",
+        background: "var(--color-bg-wash-hover)",
         color: "var(--color-text-secondary, #94a3b8)",
-        border: "1px solid rgba(148,163,184,0.2)",
+        border: "1px solid var(--color-border-default)",
       }}
     >
       {label}

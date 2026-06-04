@@ -210,7 +210,7 @@ function ContainerOrComponentBody(props: C4DetailPanelProps) {
                   display: "flex",
                   justifyContent: "space-between",
                   padding: "3px 0",
-                  borderTop: "1px solid rgba(148,163,184,0.12)",
+                  borderTop: "1px solid var(--color-border-subtle)",
                   fontSize: 11,
                 }}
               >
@@ -256,7 +256,7 @@ function ContainerOrComponentBody(props: C4DetailPanelProps) {
 
 function Section({ title, children }: { title?: string; children: ReactNode }) {
   return (
-    <div style={{ padding: "10px 12px", borderBottom: "1px solid rgba(148,163,184,0.12)" }}>
+    <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border-subtle)" }}>
       {title && (
         <div
           style={{
@@ -294,7 +294,7 @@ function KVList({ rows }: { rows: [string, string][] }) {
             display: "flex",
             justifyContent: "space-between",
             padding: "3px 0",
-            borderTop: "1px solid rgba(148,163,184,0.12)",
+            borderTop: "1px solid var(--color-border-subtle)",
             fontSize: 11,
           }}
         >

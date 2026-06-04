@@ -132,7 +132,7 @@ export function ArchNodeInfo(props: ArchNodeInfoProps) {
                   display: "flex",
                   justifyContent: "space-between",
                   padding: "3px 0",
-                  borderTop: "1px solid rgba(148,163,184,0.12)",
+                  borderTop: "1px solid var(--color-border-subtle)",
                   fontSize: 11,
                 }}
               >
@@ -359,7 +359,7 @@ function ConnectionList({
               fontSize: 11,
               textAlign: "left",
             }}
-            onMouseEnter={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.1)"); }}
+            onMouseEnter={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash-hover)"); }}
             onMouseLeave={(e) => { (e.currentTarget.style.background = "none"); }}
           >
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

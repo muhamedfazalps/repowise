@@ -123,7 +123,7 @@ export function SearchBar() {
                   padding: "8px 12px",
                   background: "transparent",
                   border: "none",
-                  borderBottom: "1px solid rgba(148,163,184,0.08)",
+                  borderBottom: "1px solid var(--color-bg-wash)",
                   cursor: "pointer",
                   textAlign: "left",
                   color: "var(--color-text-primary, #f1f5f9)",
@@ -136,7 +136,7 @@ export function SearchBar() {
                     width: 40,
                     height: 4,
                     borderRadius: 2,
-                    background: "rgba(148,163,184,0.2)",
+                    background: "var(--color-border-default)",
                     overflow: "hidden",
                   }}
                 >

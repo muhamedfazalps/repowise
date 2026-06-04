@@ -179,7 +179,7 @@ export function CodeViewer({ fetchContent }: CodeViewerProps): React.ReactElemen
           style={{
             height: 14,
             borderRadius: 4,
-            background: "rgba(148,163,184,0.15)",
+            background: "var(--color-bg-wash-hover)",
             width: `${60 + (i % 4) * 10}%`,
             animation: "pulse 1.5s ease-in-out infinite",
           }}

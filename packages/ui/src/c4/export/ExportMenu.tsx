@@ -187,7 +187,7 @@ export function C4ExportMenu({
             </>
           )}
           {status === "error" && (
-            <div style={{ padding: "6px 10px", fontSize: 10, color: "#fca5a5" }}>
+            <div style={{ padding: "6px 10px", fontSize: 10, color: "var(--color-error)" }}>
               Export failed. Try again.
             </div>
           )}
@@ -225,7 +225,7 @@ function MenuItem({
         cursor: "pointer",
         borderRadius: 4,
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(148,163,184,0.12)")}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-border-subtle)")}
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
       {icon}

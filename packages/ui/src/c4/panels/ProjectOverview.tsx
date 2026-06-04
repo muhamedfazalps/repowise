@@ -96,7 +96,7 @@ export function ProjectOverview() {
                     fontSize: 11,
                     textAlign: "left",
                   }}
-                  onMouseEnter={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.1)"); }}
+                  onMouseEnter={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash-hover)"); }}
                   onMouseLeave={(e) => { (e.currentTarget.style.background = "none"); }}
                 >
                   <LogIn size={11} style={{ flexShrink: 0, color: "var(--color-accent-primary, #f59520)" }} />
@@ -125,16 +125,16 @@ export function ProjectOverview() {
                   justifyContent: "space-between",
                   alignItems: "center",
                   padding: "5px 8px",
-                  background: "rgba(148,163,184,0.06)",
-                  border: "1px solid rgba(148,163,184,0.12)",
+                  background: "var(--color-bg-wash)",
+                  border: "1px solid var(--color-border-subtle)",
                   borderRadius: 4,
                   cursor: "pointer",
                   color: "var(--color-text-primary, #f1f5f9)",
                   fontSize: 11,
                   textAlign: "left",
                 }}
-                onMouseEnter={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.14)"); }}
-                onMouseLeave={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.06)"); }}
+                onMouseEnter={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash-hover)"); }}
+                onMouseLeave={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash)"); }}
               >
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {layer.name}
@@ -186,7 +186,7 @@ export function ProjectOverview() {
               return (
                 <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11 }}>
                   <span style={{ width: 60, opacity: 0.7, flexShrink: 0 }}>{type}</span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(148,163,184,0.1)" }}>
+                  <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--color-bg-wash-hover)" }}>
                     <div style={{ width: `${pct}%`, height: "100%", borderRadius: 3, background: tone.band }} />
                   </div>
                   <span style={{ width: 28, textAlign: "right", fontFamily: "var(--font-mono, ui-monospace, monospace)", opacity: 0.7 }}>{count}</span>
@@ -249,7 +249,7 @@ export function ProjectOverview() {
                   fontSize: 11,
                   textAlign: "left",
                 }}
-                onMouseEnter={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.1)"); }}
+                onMouseEnter={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash-hover)"); }}
                 onMouseLeave={(e) => { (e.currentTarget.style.background = "none"); }}
               >
                 <span>{n.name}</span>
@@ -269,7 +269,7 @@ function StatCell({ label, value }: { label: string; value: string }) {
     <div
       style={{
         padding: "8px 10px",
-        border: "1px solid rgba(148,163,184,0.12)",
+        border: "1px solid var(--color-border-subtle)",
         borderRadius: 6,
         textAlign: "center",
       }}

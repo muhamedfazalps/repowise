@@ -95,7 +95,7 @@ export function FilterPanel() {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "10px 12px",
-          borderBottom: "1px solid rgba(148,163,184,0.12)",
+          borderBottom: "1px solid var(--color-border-subtle)",
         }}
       >
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-primary, #f1f5f9)" }}>

@@ -140,7 +140,7 @@ function TreeNodeRow({
             fontSize: 11,
             textAlign: "left",
           }}
-          onMouseEnter={(e) => { (e.currentTarget.style.background = "rgba(148,163,184,0.08)"); }}
+          onMouseEnter={(e) => { (e.currentTarget.style.background = "var(--color-bg-wash)"); }}
           onMouseLeave={(e) => { (e.currentTarget.style.background = "none"); }}
         >
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -185,7 +185,7 @@ function TreeNodeRow({
         textAlign: "left",
       }}
       onMouseEnter={(e) => {
-        if (!isSelected) e.currentTarget.style.background = "rgba(148,163,184,0.08)";
+        if (!isSelected) e.currentTarget.style.background = "var(--color-bg-wash)";
       }}
       onMouseLeave={(e) => {
         if (!isSelected) e.currentTarget.style.background = "none";
