@@ -12,6 +12,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
@@ -215,9 +216,12 @@ function C4DiagramInner({
           nodesDraggable={false}
           nodesConnectable={false}
         >
-          <Background gap={28} size={1} color="rgba(148,163,184,0.18)" />
+          {/* Blueprint graph paper: 24px line grid on the warm canvas, matching
+              the mermaid container (kg-ux plan §2.1). */}
+          <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--color-diagram-grid)" />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable maskColor="rgba(11,18,32,0.85)" />
+          {/* maskColor comes from --xy-minimap-mask-background (theme-aware). */}
+          <MiniMap pannable zoomable />
         </ReactFlow>
 
         {selectedData && renderInspector

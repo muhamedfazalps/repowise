@@ -35,6 +35,7 @@ import {
 } from "@repowise-dev/ui/c4";
 import {
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
@@ -266,9 +267,9 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
           .react-flow__node { transition: transform 180ms ease; }
         }
       `}</style>
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0 relative bg-[var(--color-bg-canvas)]">
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center text-red-300 text-sm z-10 pointer-events-none">
+          <div className="absolute inset-0 flex items-center justify-center text-[var(--color-error)] text-sm z-10 pointer-events-none">
             {error.message}
           </div>
         )}
@@ -295,9 +296,12 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
           nodesDraggable={false}
           nodesConnectable={false}
         >
-          <Background gap={28} size={1} color="rgba(148,163,184,0.18)" />
+          {/* Blueprint graph paper: 24px line grid on the warm canvas, matching
+              the mermaid container (kg-ux plan §2.1). */}
+          <Background variant={BackgroundVariant.Lines} gap={24} size={1} color="var(--color-diagram-grid)" />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable maskColor="rgba(11,18,32,0.85)" />
+          {/* maskColor comes from --xy-minimap-mask-background (theme-aware). */}
+          <MiniMap pannable zoomable />
         </ReactFlow>
 
         {/* Orientation-first landing: story before scene (plan C-1). */}
