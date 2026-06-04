@@ -99,7 +99,25 @@ export function Sidebar({ repos = [], activeRepoId, workspace }: SidebarProps) {
       });
     }
   }, [derivedActiveRepoId]);
-  const [collapsed, setCollapsed] = React.useState(false);
+  // Docs is a reading surface — auto-collapse the sidebar on entering it so
+  // the page gets the width, and restore the previous state on leaving.
+  // Manual toggles always win while the route type is unchanged.
+  const isDocsRoute = /^\/repos\/[^/]+\/docs(\/|$)/.test(pathname ?? "");
+  const [collapsed, setCollapsed] = React.useState(isDocsRoute);
+  const preDocsCollapsed = React.useRef(false);
+  const wasDocsRoute = React.useRef(isDocsRoute);
+  React.useEffect(() => {
+    if (isDocsRoute === wasDocsRoute.current) return;
+    wasDocsRoute.current = isDocsRoute;
+    if (isDocsRoute) {
+      setCollapsed((c) => {
+        preDocsCollapsed.current = c;
+        return true;
+      });
+    } else {
+      setCollapsed(preDocsCollapsed.current);
+    }
+  }, [isDocsRoute]);
 
   const toggleRepo = (id: string) => {
     setExpandedRepos((prev) => {
@@ -119,8 +137,14 @@ export function Sidebar({ repos = [], activeRepoId, workspace }: SidebarProps) {
         isIconOnly ? "w-[56px]" : "w-[260px]",
       )}
     >
-      {/* Logo */}
-      <div className="flex h-14 items-center gap-3 px-4">
+      {/* Logo. Collapsed (56px) can't fit logo + toggle on one row — the
+          button used to spill out over the breadcrumb — so stack them. */}
+      <div
+        className={cn(
+          "flex items-center gap-3",
+          isIconOnly ? "flex-col gap-1.5 px-0 pt-3 pb-1" : "h-14 px-4",
+        )}
+      >
         <BrandLogo size={28} />
         {!isIconOnly && (
           <span className="text-base font-semibold text-[var(--color-text-primary)] tracking-tight flex-1 truncate">
@@ -129,7 +153,10 @@ export function Sidebar({ repos = [], activeRepoId, workspace }: SidebarProps) {
         )}
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="ml-auto shrink-0 rounded-md p-2.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-secondary)] transition-colors"
+          className={cn(
+            "shrink-0 rounded-md p-2.5 text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-elevated)] hover:text-[var(--color-text-secondary)] transition-colors",
+            !isIconOnly && "ml-auto",
+          )}
           aria-label={isIconOnly ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={!isIconOnly}
           aria-controls="sidebar-nav"
