@@ -176,6 +176,34 @@ function buildIndexes(view: ArchitectureView) {
   return { nodesById, edgesBySource, edgesByTarget, nodeIdToLayerId, nodeIdToSubGroupId };
 }
 
+/** Tolerate older / uncurated backend payloads (kg-ux hardening): the API
+ * response may predate the curated-KG schema (no sub_groups / entry_points /
+ * tour — e.g. a server running pre-curation code), and JSON from the wire is
+ * never as trustworthy as the TS types claim. Every field the viewer
+ * iterates gets a safe default so a stale backend degrades to the uncurated
+ * experience instead of crashing the page. */
+function normalizeView(view: ArchitectureView): ArchitectureView {
+  return {
+    ...view,
+    layers: (view.layers ?? []).map((l, i) => ({
+      ...l,
+      node_ids: l.node_ids ?? [],
+      sub_groups: l.sub_groups ?? [],
+      display_order: l.display_order ?? i,
+      health_score: l.health_score ?? null,
+      complexity_distribution: l.complexity_distribution ?? {},
+    })),
+    nodes: (view.nodes ?? []).map((n) => ({ ...n, tags: n.tags ?? [] })),
+    edges: view.edges ?? [],
+    tour: view.tour ?? [],
+    languages: view.languages ?? [],
+    frameworks: view.frameworks ?? [],
+    external_systems: view.external_systems ?? [],
+    entry_points: view.entry_points ?? [],
+    entry_candidates: view.entry_candidates ?? [],
+  };
+}
+
 /** Drill state that lands on *nodeId*'s file card: its layer, and — when the
  * layer is curated into sub-groups — the sub-group that contains it.
  * Returns {} when the node's layer is unknown or already active. */
@@ -287,7 +315,8 @@ export const useArchitectureStore = create<ArchitectureStore>()(
     (set, get) => ({
       ...INITIAL_STATE,
 
-      setView: (view: ArchitectureView) => {
+      setView: (rawView: ArchitectureView) => {
+        const view = normalizeView(rawView);
         const { nodesById, edgesBySource, edgesByTarget, nodeIdToLayerId, nodeIdToSubGroupId } =
           buildIndexes(view);
         const filters = buildFiltersFromView(view);
