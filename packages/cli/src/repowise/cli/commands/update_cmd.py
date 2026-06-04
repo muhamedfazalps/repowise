@@ -346,22 +346,45 @@ def _build_repo_graph(
     """
     from pathlib import Path as PathlibPath
 
-    from repowise.core.ingestion import ASTParser, FileTraverser, GraphBuilder
+    from repowise.core.ingestion import ASTParser, FileTraverser, GraphBuilder, compute_content_hash
 
     traverser = FileTraverser(repo_path, extra_exclude_patterns=exclude_patterns or None)
     file_infos = list(traverser.traverse())
     repo_structure = traverser.get_repo_structure()
 
-    parser = ASTParser()
+    # Content-hash parse cache: an incremental update re-ingests the whole
+    # repo, but only the changed files actually need a tree-sitter parse.
+    # Best-effort — any cache failure falls back to a full parse.
+    parse_cache = None
+    try:
+        from repowise.core.ingestion.parse_cache import ParseCache
+
+        parse_cache = ParseCache(PathlibPath(repo_path) / ".repowise")
+        parse_cache.load()
+    except Exception:
+        parse_cache = None
+
+    parser: Any = None  # constructed lazily — every-file-cached updates skip query compilation
     parsed_files: list = []
     source_map: dict[str, bytes] = {}
-    graph_builder = GraphBuilder(repo_path, exclude_patterns=exclude_patterns)
+    graph_builder = GraphBuilder(
+        repo_path,
+        exclude_patterns=exclude_patterns,
+        centrality_cache_dir=PathlibPath(repo_path) / ".repowise",
+    )
 
     skipped = 0
     for fi in file_infos:
         try:
             source = PathlibPath(fi.abs_path).read_bytes()
-            parsed = parser.parse_file(fi, source)
+            content_hash = compute_content_hash(source)
+            parsed = parse_cache.get(fi, content_hash) if parse_cache is not None else None
+            if parsed is None:
+                if parser is None:
+                    parser = ASTParser()
+                parsed = parser.parse_file(fi, source)
+                if parse_cache is not None:
+                    parse_cache.put(parsed, content_hash)
         except Exception:
             skipped += 1
             continue
@@ -370,6 +393,8 @@ def _build_repo_graph(
             source_map[fi.path] = source
         graph_builder.add_file(parsed)
     graph_builder.build()
+    if parse_cache is not None:
+        parse_cache.save()
 
     if skipped:
         console.print(f"[yellow]Skipped {skipped} file(s) that failed to parse.[/yellow]")
@@ -393,9 +418,15 @@ def _rebuild_graph_and_git(
     file_diffs: list,
     cfg: dict,
     exclude_patterns: list[str],
+    git_tier: str | None = None,
 ) -> tuple[list, dict[str, bytes], Any, Any, int, dict[str, dict]]:
     """Re-traverse + parse the repo, rebuild the graph (+ framework edges), and
     re-index git metadata for the changed files.
+
+    ``git_tier`` is the persisted ``state.json:git_tier`` value: a fast-mode
+    (ESSENTIAL) repo must not pay per-file blame on every update for signals
+    its index never had. Unknown/missing values fall back to FULL, matching
+    the historical behavior for legacy state files.
 
     Returns ``(parsed_files, source_map, graph_builder, repo_structure,
     file_count, git_meta_map)``.
@@ -409,7 +440,12 @@ def _rebuild_graph_and_git(
     git_meta_map: dict[str, dict] = {}
     try:
         from repowise.core.ingestion.git_indexer import GitIndexer
+        from repowise.core.ingestion.git_indexer.tiers import GitIndexTier
 
+        try:
+            tier = GitIndexTier(git_tier) if git_tier else GitIndexTier.FULL
+        except ValueError:
+            tier = GitIndexTier.FULL
         _commit_limit = cfg.get("commit_limit")
         _follow_renames = cfg.get("follow_renames", False)
         git_indexer = GitIndexer(
@@ -417,6 +453,7 @@ def _rebuild_graph_and_git(
             commit_limit=_commit_limit,
             follow_renames=_follow_renames,
             exclude_patterns=exclude_patterns or None,
+            tier=tier,
         )
         changed_paths = _build_filtered_changed_paths(file_diffs, exclude_patterns)
         updated_meta = run_async(git_indexer.index_changed_files(changed_paths))
@@ -1101,26 +1138,15 @@ def update_command(
         console.print(f"  [{color}]{fd.status:>10}[/{color}]  {fd.path}")
 
     # Re-parse changed files and rebuild graph for affected pages
-    from repowise.core.generation import ContextAssembler, GenerationConfig, PageGenerator
-
     cfg = load_config(repo_path)
-    language = cfg.get("language", "en")
-    # Config-driven (saved by `repowise init`); CLI override not surfaced
-    # on update yet — defaults to on to keep the onboarding collection
-    # fresh as the codebase evolves.
-    enable_onboarding_cfg = bool(cfg.get("enable_onboarding", True))
-    config = GenerationConfig(
-        max_concurrency=concurrency,
-        language=language,
-        reasoning=resolve_reasoning(reasoning, cfg),
-        enable_onboarding=enable_onboarding_cfg,
-    )
 
     # Read exclude patterns from config (set during init or via web UI)
     exclude_patterns: list[str] = list(cfg.get("exclude_patterns") or [])
 
     parsed_files, source_map, graph_builder, repo_structure, file_count, git_meta_map = (
-        _rebuild_graph_and_git(repo_path, file_diffs, cfg, exclude_patterns)
+        _rebuild_graph_and_git(
+            repo_path, file_diffs, cfg, exclude_patterns, git_tier=state.get("git_tier")
+        )
     )
 
     # Determine affected pages (auto-scale budget if not explicitly set)
@@ -1163,6 +1189,23 @@ def update_command(
             [fd.path for fd in file_diffs],
         )
         return
+
+    # The generation/LLM layer is only needed past this point — importing it
+    # above the index-only branch would make every index-only update (the
+    # post-commit hook's hot path) pay the import for code it never runs.
+    from repowise.core.generation import ContextAssembler, GenerationConfig, PageGenerator
+
+    language = cfg.get("language", "en")
+    # Config-driven (saved by `repowise init`); CLI override not surfaced
+    # on update yet — defaults to on to keep the onboarding collection
+    # fresh as the codebase evolves.
+    enable_onboarding_cfg = bool(cfg.get("enable_onboarding", True))
+    config = GenerationConfig(
+        max_concurrency=concurrency,
+        language=language,
+        reasoning=resolve_reasoning(reasoning, cfg),
+        enable_onboarding=enable_onboarding_cfg,
+    )
 
     provider = resolve_provider(provider_name, model, repo_path=repo_path)
 
