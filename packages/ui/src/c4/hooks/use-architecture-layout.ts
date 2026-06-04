@@ -213,7 +213,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
         type: MarkerType.ArrowClosed,
         width: 14,
         height: 14,
-        color: edgeColor(agg.dominantType),
+        color: "var(--color-diagram-edge)",
       },
       data: {
         edge_type: agg.dominantType,
@@ -376,7 +376,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
         type: MarkerType.ArrowClosed,
         width: 14,
         height: 14,
-        color: edgeColor(agg.dominantType),
+        color: "var(--color-diagram-edge)",
       },
       data: {
         edge_type: agg.dominantType,
@@ -633,7 +633,7 @@ export function useArchitectureLayout(): ArchitectureLayoutResult {
           type: MarkerType.ArrowClosed,
           width: 14,
           height: 14,
-          color: edgeColor(agg.dominantType),
+          color: "var(--color-diagram-edge)",
         },
         data: {
           edge_type: agg.dominantType,
