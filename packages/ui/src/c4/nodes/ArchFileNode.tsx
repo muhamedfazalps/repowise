@@ -4,6 +4,7 @@ import { memo } from "react";
 import { Flame, Skull, Play } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import { NodeShell } from "../../graph-primitives/node-shell";
+import { EntityHoverCard } from "../../shared/entity";
 import { THEME } from "../theme/theme-variables";
 import type { ArchNode } from "../types";
 
@@ -89,23 +90,41 @@ function ArchFileNodeImpl(props: NodeProps) {
   );
 
   return (
-    <div style={barrelFaded ? { opacity: 0.55 } : undefined}>
-      <NodeShell
-        tone={node.node_type}
-        kindLabel={kindLabel}
-        title={node.name}
-        subtitle={node.summary}
-        footer={footer}
-        selected={selected}
-        searchHighlight={searchHighlight}
-        tourHighlight={tourHighlight}
-        diffState={effectiveDiffState}
-        hasDocs={hasDocs ?? node.has_doc}
-        badges={badges}
-        width={300}
-        height={140}
-      />
-    </div>
+    // Summary-rich hover (plan C-4): curated summary + tags + signals via the
+    // shared EntityHoverCard — no new card components.
+    <EntityHoverCard
+      entity={{ kind: "file", id: node.file_path ?? node.id }}
+      meta={{
+        kind: "file",
+        data: {
+          summary: node.summary,
+          tags: node.tags,
+          owner: node.primary_owner,
+          busFactor: node.bus_factor,
+          language: node.language,
+          hasDocs: hasDocs ?? node.has_doc,
+          hasDeadCode: node.is_dead,
+        },
+      }}
+    >
+      <div style={barrelFaded ? { opacity: 0.55 } : undefined}>
+        <NodeShell
+          tone={node.node_type}
+          kindLabel={kindLabel}
+          title={node.name}
+          subtitle={node.summary}
+          footer={footer}
+          selected={selected}
+          searchHighlight={searchHighlight}
+          tourHighlight={tourHighlight}
+          diffState={effectiveDiffState}
+          hasDocs={hasDocs ?? node.has_doc}
+          badges={badges}
+          width={300}
+          height={140}
+        />
+      </div>
+    </EntityHoverCard>
   );
 }
 
