@@ -28,10 +28,11 @@ export default function GraphPage({
 
   const [, setSelectedNode] = useQueryState("node");
   const [docNodeId, setDocNodeId] = useState<string | null>(null);
+  const [graphLimit, setGraphLimit] = useState<number | undefined>(undefined);
 
   const { data: graphData } = useSWR<GraphExportResponse>(
-    `graph:${repoId}`,
-    () => getGraph(repoId),
+    `graph:${repoId}:${graphLimit ?? "default"}`,
+    () => getGraph(repoId, graphLimit),
     { revalidateOnFocus: false, revalidateOnReconnect: false },
   );
 
@@ -81,6 +82,8 @@ export default function GraphPage({
           <GraphTruncationBanner
             shown={graphData.nodes.length}
             total={graphData.total_node_count}
+            limit={graphLimit ?? graphData.nodes.length}
+            onLoadMore={(nextLimit) => setGraphLimit(nextLimit)}
             onSwitchToArchitecture={() => {
               const url = new URL(window.location.href);
               url.searchParams.set("viewMode", "architecture");

@@ -15,8 +15,14 @@ import type {
   NodeSearchResult,
 } from "./types";
 
-export async function getGraph(repoId: string): Promise<GraphExportResponse> {
-  return apiGet<GraphExportResponse>(`/api/graph/${repoId}`);
+export async function getGraph(
+  repoId: string,
+  limit?: number,
+): Promise<GraphExportResponse> {
+  return apiGet<GraphExportResponse>(
+    `/api/graph/${repoId}`,
+    limit != null ? { limit } : undefined,
+  );
 }
 
 export async function getGraphPath(

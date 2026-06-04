@@ -16,6 +16,9 @@ import { GraphProvider, type GraphContextValue, type Signal } from "./context";
 import { groupNodesAsModules, type FileNodeData, type ModuleNodeData } from "./elk-layout";
 
 const EMPTY_STRING_SET = new Set<string>();
+// Below this node count file graphs build synchronously; at or above it we
+// build in chunks off the critical path (see sigmaGraph below).
+const ASYNC_BUILD_THRESHOLD = 1000;
 import { useExpandedModules } from "./use-expanded-modules";
 import { traceToEdgeKeys } from "./graph-flow-helpers";
 import { useGraphContextMenu } from "./use-graph-context-menu";
@@ -35,9 +38,12 @@ import type {
 import { SigmaCanvas, type SigmaCanvasHandle } from "./sigma/sigma-canvas";
 import {
   fileGraphToGraphology,
+  fileGraphToGraphologyAsync,
   moduleGraphToGraphology,
   groupFilesAsModules,
 } from "./sigma/graphology-adapter";
+import type { SigmaNodeAttributes, SigmaEdgeAttributes } from "./sigma/types";
+import type GraphologyGraph from "graphology";
 import { useEgoFilter } from "./sigma/use-ego-filter";
 import {
   NODE_BASE_SIZES,
@@ -288,8 +294,13 @@ export function GraphFlow(props: GraphFlowProps) {
     return { moduleChildIndex, nodeEdgeIndex };
   }, [fullGraph]);
 
-  // Build Graphology graph for Sigma rendering
-  const sigmaGraph = useMemo(() => {
+  // Build Graphology graph for Sigma rendering.
+  //
+  // Module / drill-down / small file graphs build synchronously here. Large
+  // file graphs (>= ASYNC_BUILD_THRESHOLD) are deferred off the critical path:
+  // this memo returns null and the effect below constructs them in chunks,
+  // keeping the loading state up until the first frame is ready.
+  const syncSigmaGraph = useMemo(() => {
     if (isModuleView) {
       if (isDrilledDown && fullGraph) {
         return groupFilesAsModules(fullGraph, { prefix: currentPrefix });
@@ -406,6 +417,9 @@ export function GraphFlow(props: GraphFlowProps) {
     const graphData = fileGraphData;
     if (!graphData) return null;
 
+    // Defer large file graphs to the async effect below.
+    if (graphData.nodes.length >= ASYNC_BUILD_THRESHOLD) return null;
+
     const signals: { hotNodeIds?: Set<string>; deadNodeIds?: Set<string> } = {};
     if (hasHotSignal || isUnified) signals.hotNodeIds = hotNodeIds;
     if (hasDeadSignal || isUnified) signals.deadNodeIds = deadNodeIds;
@@ -415,6 +429,49 @@ export function GraphFlow(props: GraphFlowProps) {
       { signals },
     );
   }, [isModuleView, isDrilledDown, fullGraph, currentPrefix, moduleGraph, communities, expandedModules, fileGraphData, hasHotSignal, hasDeadSignal, isUnified, hotNodeIds, deadNodeIds, fullGraphIndexes]);
+
+  // Async-built file graph for large graphs (built in chunks off the main
+  // thread critical path). Null while building / when the sync path applies.
+  const [asyncSigmaGraph, setAsyncSigmaGraph] = useState<GraphologyGraph<
+    SigmaNodeAttributes,
+    SigmaEdgeAttributes
+  > | null>(null);
+  const [isBuildingGraph, setIsBuildingGraph] = useState(false);
+
+  const needsAsyncBuild =
+    !isModuleView &&
+    !!fileGraphData &&
+    fileGraphData.nodes.length >= ASYNC_BUILD_THRESHOLD;
+
+  useEffect(() => {
+    if (!needsAsyncBuild || !fileGraphData) {
+      setAsyncSigmaGraph(null);
+      setIsBuildingGraph(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsBuildingGraph(true);
+
+    const signals: { hotNodeIds?: Set<string>; deadNodeIds?: Set<string> } = {};
+    if (hasHotSignal || isUnified) signals.hotNodeIds = hotNodeIds;
+    if (hasDeadSignal || isUnified) signals.deadNodeIds = deadNodeIds;
+
+    void fileGraphToGraphologyAsync(
+      { nodes: fileGraphData.nodes, links: fileGraphData.links },
+      { signals },
+    ).then((graph) => {
+      if (cancelled) return;
+      setAsyncSigmaGraph(graph);
+      setIsBuildingGraph(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needsAsyncBuild, fileGraphData, hasHotSignal, hasDeadSignal, isUnified, hotNodeIds, deadNodeIds]);
+
+  const sigmaGraph = syncSigmaGraph ?? asyncSigmaGraph;
 
   const { hiddenNodes, isActive: isEgoActive, visibleCount: egoVisibleCount } = useEgoFilter({
     graph: sigmaGraph,
@@ -719,7 +776,8 @@ export function GraphFlow(props: GraphFlowProps) {
     setCtxMenu(null);
   }, [ctxMenu, setCtxMenu]);
 
-  if (isLoading) return <Skeleton className="h-full w-full rounded-lg" />;
+  if (isLoading || (isBuildingGraph && !sigmaGraph))
+    return <Skeleton className="h-full w-full rounded-lg" />;
 
   return (
     <GraphProvider value={ctxValue}>

@@ -7,9 +7,9 @@ import type { Signal } from "../context";
 import {
   LABEL_FONT,
   LABEL_SIZE,
-  LABEL_DENSITY,
   LABEL_GRID_CELL_SIZE,
-  LABEL_RENDERED_SIZE_THRESHOLD,
+  getLabelDensity,
+  getLabelRenderedSizeThreshold,
   getCommunityColor,
   languageColor,
 } from "./constants";
@@ -221,9 +221,9 @@ export function useSigmaRenderer(options: UseSigmaOptions): UseSigmaReturn {
         renderLabels: true,
         labelFont: LABEL_FONT,
         labelSize: LABEL_SIZE,
-        labelDensity: LABEL_DENSITY,
+        labelDensity: getLabelDensity(graph.order),
         labelGridCellSize: LABEL_GRID_CELL_SIZE,
-        labelRenderedSizeThreshold: LABEL_RENDERED_SIZE_THRESHOLD,
+        labelRenderedSizeThreshold: getLabelRenderedSizeThreshold(graph.order),
         labelColor: { color: "#e4e4ed" },
         defaultNodeColor: "#6b7280",
         defaultEdgeColor: "#2a2a3a",

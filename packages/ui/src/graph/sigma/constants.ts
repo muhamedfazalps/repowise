@@ -93,12 +93,8 @@ export function getFA2Settings(nodeCount: number): Record<string, unknown> {
  * How long FA2 should run before stopping (ms).
  */
 export function getLayoutDuration(nodeCount: number): number {
-  if (nodeCount > 10000) return 20000;
-  if (nodeCount > 5000) return 15000;
   if (nodeCount > 2000) return 12000;
-  if (nodeCount > 1000) return 10000;
-  if (nodeCount > 500) return 8000;
-  return 5000;
+  return 8000;
 }
 
 // ---- Noverlap post-layout settings ----
@@ -121,3 +117,12 @@ export const LABEL_SIZE = 11;
 export const LABEL_DENSITY = 0.15;
 export const LABEL_GRID_CELL_SIZE = 80;
 export const LABEL_RENDERED_SIZE_THRESHOLD = 6;
+
+/** Sparser labels on large graphs to keep repaint cheap. */
+export function getLabelDensity(nodeCount: number): number {
+  return nodeCount > 2000 ? 0.07 : LABEL_DENSITY;
+}
+
+export function getLabelRenderedSizeThreshold(nodeCount: number): number {
+  return nodeCount > 2000 ? 8 : LABEL_RENDERED_SIZE_THRESHOLD;
+}

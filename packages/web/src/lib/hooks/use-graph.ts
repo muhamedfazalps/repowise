@@ -29,10 +29,10 @@ import type {
 
 const SWR_OPTS = { revalidateOnFocus: false, revalidateOnReconnect: false };
 
-export function useGraph(repoId: string | null) {
+export function useGraph(repoId: string | null, limit?: number) {
   const { data, error, isLoading } = useSWR<GraphExportResponse>(
-    repoId ? `graph:${repoId}` : null,
-    () => getGraph(repoId!),
+    repoId ? `graph:${repoId}:${limit ?? "default"}` : null,
+    () => getGraph(repoId!, limit),
     SWR_OPTS,
   );
   return { graph: data, error, isLoading };

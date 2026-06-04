@@ -68,10 +68,16 @@ export function GraphFlow({
     viewMode === "hotfiles" ? repoId : null,
   );
   const { communities } = useCommunities(repoId);
-  const { flows: executionFlowsData } = useExecutionFlows(repoId, {
-    top_n: 10,
-    max_depth: 6,
-  });
+  // Execution flows only highlight a file-level trace, so defer the fetch until
+  // a full/file graph is actually needed (keeps the modules mount to
+  // /communities + /modules only).
+  const { flows: executionFlowsData } = useExecutionFlows(
+    needsFullGraph ? repoId : null,
+    {
+      top_n: 10,
+      max_depth: 6,
+    },
+  );
 
   return (
     <GraphFlowShell

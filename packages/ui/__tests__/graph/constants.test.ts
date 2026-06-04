@@ -5,6 +5,9 @@ import {
   COMMUNITY_COLORS,
   getCommunityColor,
   NODE_BASE_SIZES,
+  getLayoutDuration,
+  getLabelDensity,
+  getLabelRenderedSizeThreshold,
 } from "../../src/graph/sigma/constants";
 
 describe("getScaledNodeSize", () => {
@@ -22,6 +25,30 @@ describe("getScaledNodeSize", () => {
 
   it("never returns less than the minimum floor", () => {
     expect(getScaledNodeSize(1, 100000)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("getLayoutDuration", () => {
+  it("caps at 8s for graphs up to 2000 nodes", () => {
+    expect(getLayoutDuration(100)).toBe(8000);
+    expect(getLayoutDuration(2000)).toBe(8000);
+  });
+
+  it("caps at 12s above 2000 nodes", () => {
+    expect(getLayoutDuration(2001)).toBe(12000);
+    expect(getLayoutDuration(50000)).toBe(12000);
+  });
+});
+
+describe("label density", () => {
+  it("uses 0.15 / 6px at or below 2000 nodes", () => {
+    expect(getLabelDensity(2000)).toBe(0.15);
+    expect(getLabelRenderedSizeThreshold(2000)).toBe(6);
+  });
+
+  it("uses 0.07 / 8px above 2000 nodes", () => {
+    expect(getLabelDensity(2001)).toBe(0.07);
+    expect(getLabelRenderedSizeThreshold(2001)).toBe(8);
   });
 });
 
