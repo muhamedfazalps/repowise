@@ -379,6 +379,11 @@ class GraphBuilder(MetricsMixin, ResolveMixin, EdgesMixin, SerializeMixin, Rehyd
         # unused_export false positives (audit #23).
         self._resolve_member_reads(progress=progress)
 
+        # --- C# partial-class co-fragments ---
+        # Fragments of one partial type across files are literally one
+        # class; link them bidirectionally so neither reads as orphaned.
+        self._resolve_csharp_partials(ctx, progress=progress)
+
         # --- JVM same-package implicit references ---
         # Java/Kotlin (and Scala) reference same-package types without an
         # import statement; emit conservative sibling edges so cohesive

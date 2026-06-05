@@ -143,6 +143,62 @@ class ResolveMixin:
                 if callable(done):
                     done(phase)
 
+    def _resolve_csharp_partials(self, ctx: Any, progress: Any | None = None) -> None:
+        """Link C# ``partial`` co-fragments of one type bidirectionally.
+
+        Fragments of a partial class across files are literally one
+        class — without these edges the secondary fragment files read as
+        disconnected from their own type.
+        """
+        from ..resolvers.dotnet import get_or_build_index
+
+        has_csharp = any(
+            pf.file_info.language == "csharp" for pf in self._parsed_files.values()
+        )
+        if not has_csharp:
+            return
+
+        phase = "graph.partials"
+        if progress:
+            progress.on_phase_start(phase, None)
+        try:
+            index = get_or_build_index(ctx)
+            added = 0
+            if index is not None and index.partial_types:
+                repo = index.repo_path
+                for fqn, files in sorted(index.partial_types.items()):
+                    rels = []
+                    for f in files:
+                        try:
+                            rel = f.resolve().relative_to(repo).as_posix()
+                        except (OSError, ValueError):
+                            continue
+                        if self._graph.has_node(rel):
+                            rels.append(rel)
+                    if len(rels) < 2:
+                        continue
+                    local_name = fqn.rsplit(".", 1)[-1]
+                    for a in rels:
+                        for b in rels:
+                            if a == b or self._graph.has_edge(a, b):
+                                continue
+                            self._graph.add_edge(
+                                a,
+                                b,
+                                edge_type="imports",
+                                imported_names=[local_name],
+                                hint_source="partial_class",
+                            )
+                            added += 1
+            log.info("partial_class_edges", language="csharp", added=added)
+        except Exception as exc:
+            log.warning("csharp_partials_failed", error=str(exc))
+        finally:
+            if progress:
+                done = getattr(progress, "on_phase_done", None)
+                if callable(done):
+                    done(phase)
+
     def _resolve_swift_same_module(self, ctx: Any, progress: Any | None = None) -> None:
         """Emit same-module ``imports`` edges for Swift files.
 
