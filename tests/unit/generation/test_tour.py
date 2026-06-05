@@ -193,3 +193,21 @@ def test_build_tour_respects_max_stops():
     documented = {f"f{i}.py" for i in range(50)}
     stops = build_tour(files, pr, edges, file_page_paths=documented, repo_name="r")
     assert len(stops) <= DEFAULT_MAX_STOPS
+
+
+def test_score_entry_points_withholds_bonuses_from_api_contracts_and_infra():
+    # Phase 1.5: schema/data languages (graphql, proto, sql, openapi) and
+    # infra wiring (shell, terraform, dockerfile) never earn entry bonuses,
+    # however entry-like their stems are.
+    files = [
+        _PF(_FI(path="index.graphql", language="graphql", is_entry_point=True)),
+        _PF(_FI(path="main.sql", language="sql", is_entry_point=True)),
+        _PF(_FI(path="run.sh", language="shell", is_entry_point=True)),
+        _PF(_FI(path="main.tf", language="terraform", is_entry_point=True)),
+        _PF(_FI(path="src/main.py")),
+    ]
+    pr = {p.file_info.path: 0.5 for p in files}
+    scored = {p: s for s, p in score_entry_points(files, pr)}
+    assert scored["src/main.py"] >= 3.0
+    for path in ("index.graphql", "main.sql", "run.sh", "main.tf"):
+        assert scored.get(path, 0.0) < 3.0, path

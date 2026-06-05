@@ -832,3 +832,22 @@ class TestClosingStopParity:
         kg = _curate(repo, enabled=True)
         closing = _closing_stops(kg)
         assert closing[0]["reason"] == "The test suite — how the system's behavior is verified."
+
+
+class TestNonInfraCodeTyping:
+    def test_tier3_code_never_typed_infra_by_name(self):
+        # Phase 1.5 equivalents of the dockerfile.py guard for the once-
+        # unprotected extensions: code that *handles* infra formats is code.
+        from repowise.core.analysis.kg_curation import _enrich_type
+
+        assert _enrich_type("k8s/dockerfile.nim", "file") == ("file", None)
+        assert _enrich_type("build/makefile.clj", "file") == ("file", None)
+        assert _enrich_type("ci/.github/workflows/helpers.hs", "file") == ("file", None)
+        assert _enrich_type("tools/docker-compose.dart", "file") == ("file", None)
+
+    def test_infra_languages_still_promote(self):
+        from repowise.core.analysis.kg_curation import _enrich_type
+
+        assert _enrich_type("deploy/k8s/deploy.sh", "file") == ("service", "infra")
+        assert _enrich_type("infra/main.tf", "file") == ("service", "infra")
+        assert _enrich_type(".github/workflows/ci.yml", "config") == ("pipeline", "ci")

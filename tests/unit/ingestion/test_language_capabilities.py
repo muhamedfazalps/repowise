@@ -156,23 +156,10 @@ class TestImportSupportTiers:
 
 
 # ---------------------------------------------------------------------------
-# Drift manifests — the registry-vs-pipeline gap, pinned exactly.
-# These sets ARE the Phase 1 change list. Update them only together with a
-# conscious decision (see prompts/kg-language-accuracy-DECISIONS.md D-011).
+# Derivation pins — Phase 1.5 consumed the Phase-0 drift manifests: both
+# constants are now registry derivations. These tests pin the derivation
+# relationship instead of a frozen literal.
 # ---------------------------------------------------------------------------
-
-# Code extensions the registry knows but kg_curation._CODE_SUFFIXES doesn't:
-# files with these suffixes can currently be mistyped as infra/CI by
-# _enrich_type when their names look infra-ish.
-_CODE_SUFFIXES_MISSING = {
-    ".bash", ".clj", ".cljc", ".cljs", ".cr", ".cts", ".cxx", ".d", ".dart",
-    ".elm", ".erl", ".fs", ".fsi", ".fsx", ".hcl", ".hrl", ".hs", ".hxx",
-    ".jl", ".kts", ".lhs", ".luau", ".m", ".ml", ".mli", ".mm", ".mts",
-    ".nim", ".pyi", ".sh", ".tf", ".zsh",
-}  # fmt: skip
-
-# Suffixes the pipeline lists but no spec declares (.pl: there is no perl spec).
-_CODE_SUFFIXES_ORPHANED = {".pl"}
 
 # Non-tag defensive aliases inside tour._NON_CODE_LANGUAGES (none is a
 # registry tag; they guard against unnormalized language strings).
@@ -180,10 +167,6 @@ _NON_CODE_ALIASES = {
     "cmake", "css", "csv", "html", "ini", "md", "rst", "svg", "text", "txt",
     "xml", "yml",
 }  # fmt: skip
-
-# Real is_code=False registry tags MISSING from tour._NON_CODE_LANGUAGES:
-# a schema.graphql named entry-like could still earn entry bonuses today.
-_NON_CODE_TAGS_MISSING = {"graphql", "openapi", "proto", "sql", "unknown", "xaml"}
 
 # Entry patterns merged from the dead LanguageConfig table in Phase 1.3
 # (the backlog recorded by Phase 0). "public/index.php" was intentionally
@@ -211,16 +194,26 @@ _PHASE13_MERGED_ENTRY_PATTERNS = {
 
 
 class TestDriftManifests:
-    def test_code_suffix_drift_is_exactly_as_recorded(self) -> None:
-        registry_suffixes = REGISTRY.all_code_extensions()
-        assert registry_suffixes - _CODE_SUFFIXES == _CODE_SUFFIXES_MISSING
-        assert _CODE_SUFFIXES - registry_suffixes == _CODE_SUFFIXES_ORPHANED
+    def test_code_suffixes_are_the_non_infra_code_derivation(self) -> None:
+        assert _CODE_SUFFIXES == REGISTRY.non_infra_code_extensions()
+        # The 32 once-missing extensions are protected now …
+        assert {".dart", ".hs", ".clj", ".erl", ".nim", ".m", ".luau"} <= _CODE_SUFFIXES
+        # … infra languages stay promotable, and the perl orphan is gone.
+        assert {".sh", ".bash", ".zsh", ".tf", ".hcl", ".pl"} & _CODE_SUFFIXES == set()
 
-    def test_non_code_language_drift_is_exactly_as_recorded(self) -> None:
-        tags = {s.tag for s in REGISTRY.all_specs()}
-        assert _NON_CODE_LANGUAGES - tags == _NON_CODE_ALIASES
-        non_code_tags = {s.tag for s in REGISTRY.all_specs() if not s.is_code}
-        assert non_code_tags - _NON_CODE_LANGUAGES == _NON_CODE_TAGS_MISSING
+    def test_non_code_languages_are_config_plus_infra_plus_aliases(self) -> None:
+        assert _NON_CODE_LANGUAGES == (
+            REGISTRY.config_languages()
+            | REGISTRY.infra_languages()
+            | frozenset(_NON_CODE_ALIASES)
+        )
+        # The once-missing is_code=False tags and infra tags are covered …
+        assert {
+            "graphql", "openapi", "proto", "sql", "unknown", "xaml",
+            "shell", "terraform", "dockerfile", "makefile",
+        } <= _NON_CODE_LANGUAGES  # fmt: skip
+        # … and real (Tier-3 included) code languages never are.
+        assert {"python", "elixir", "dart", "haskell", "go"} & _NON_CODE_LANGUAGES == set()
 
     def test_merged_entry_patterns_present_on_specs(self) -> None:
         # Phase 1.3 closed the entry-pattern backlog: every language with a

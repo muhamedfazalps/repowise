@@ -45,29 +45,21 @@ from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTR
 # tests/unit/ingestion/test_language_capabilities.py.
 _ENTRY_FILENAME_STEMS: frozenset[str] = _LANG_REGISTRY.entry_filename_stems()
 
-# Doc/data languages whose files can never be execution entry points, however
-# entry-like their stem is (docs/index.md is not a program's front door).
-_NON_CODE_LANGUAGES: frozenset[str] = frozenset(
-    {
-        "markdown",
-        "md",
-        "rst",
-        "text",
-        "txt",
-        "json",
-        "yaml",
-        "yml",
-        "toml",
-        "ini",
-        "html",
-        "css",
-        "csv",
-        "xml",
-        "svg",
-        "makefile",
-        "dockerfile",
-        "cmake",
-    }
+# Languages whose files can never be execution entry points, however
+# entry-like their stem is: docs/data/config (``is_code=False`` —
+# docs/index.md is not a program's front door, and neither is
+# schema.graphql or an openapi index) plus build/deploy wiring
+# (``is_infra`` — a Dockerfile or deploy.sh wires the system rather than
+# starting its control flow; infra pages close the tour instead). Both
+# sets derive from the registry; the lowercase aliases guard against
+# unnormalized language strings from older indexes (none is a spec tag).
+_NON_CODE_ALIASES: frozenset[str] = frozenset(
+    {"md", "yml", "txt", "html", "css", "csv", "xml", "svg", "rst", "text", "ini", "cmake"}
+)
+_NON_CODE_LANGUAGES: frozenset[str] = (
+    _LANG_REGISTRY.config_languages()
+    | _LANG_REGISTRY.infra_languages()
+    | _NON_CODE_ALIASES
 )
 
 # Upper bound on tour stops — long enough to teach the spine, short enough to

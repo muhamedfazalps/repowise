@@ -100,6 +100,20 @@ class LanguageRegistry:
             ext for spec in self._specs.values() if spec.is_code for ext in spec.extensions
         )
 
+    def non_infra_code_extensions(self) -> frozenset[str]:
+        """Extensions of code languages that are not infra (typing guard).
+
+        Shell/terraform are code *and* infra — their files may still be
+        promoted to infra/CI presentation types by name and path; genuine
+        source extensions (.py … .dart .hs .clj) never are.
+        """
+        return frozenset(
+            ext
+            for spec in self._specs.values()
+            if spec.is_code and not spec.is_infra
+            for ext in spec.extensions
+        )
+
     def code_languages(self) -> frozenset[str]:
         """Return tags for code languages (not config/markup/data)."""
         return frozenset(s.tag for s in self._specs.values() if s.is_code and not s.is_passthrough)

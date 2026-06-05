@@ -719,14 +719,11 @@ _DATA_SUFFIXES = (".sql", ".prisma")
 
 # Source-code extensions. A code file is never CI/infra config however its
 # name or directory reads — ``languages/specs/dockerfile.py`` *parses*
-# Dockerfiles, it isn't one.
-_CODE_SUFFIXES = frozenset(
-    {
-        ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go",
-        ".java", ".kt", ".rb", ".php", ".cs", ".cpp", ".cc", ".c", ".h",
-        ".hpp", ".swift", ".scala", ".ex", ".exs", ".lua", ".pl", ".r", ".zig",
-    }
-)  # fmt: skip
+# Dockerfiles, it isn't one. Registry-derived (Phase 1.5): every is_code,
+# non-infra language's extensions are protected — .dart/.hs/.clj included;
+# shell/terraform stay promotable (they ARE infra); the historical orphan
+# ``.pl`` (no perl spec) is gone.
+_CODE_SUFFIXES = _LANG_REGISTRY.non_infra_code_extensions()
 
 
 def _enrich_type(path: str, current_type: str) -> tuple[str, str | None]:
