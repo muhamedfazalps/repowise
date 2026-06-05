@@ -157,6 +157,22 @@ def test_build_tour_seedless_repo_reasons_do_not_overclaim():
         assert "Off the import path" not in s.reason
 
 
+def test_build_tour_seedless_anchor_is_a_code_file():
+    # The fallback anchor must skip docs/config — a CLAUDE.md at the root
+    # outscores deep code files but cannot anchor an import walk.
+    files = [
+        _PF(_FI(path=".claude/CLAUDE.md", language="markdown")),
+        _PF(_FI(path="src/pkg/api.py")),
+        _PF(_FI(path="src/pkg/models.py")),
+    ]
+    pr = {".claude/CLAUDE.md": 0.9, "src/pkg/api.py": 0.5, "src/pkg/models.py": 0.4}
+    edges = [("src/pkg/api.py", "src/pkg/models.py")]
+    documented = {".claude/CLAUDE.md", "src/pkg/api.py", "src/pkg/models.py"}
+    stops = build_tour(files, pr, edges, file_page_paths=documented)
+    anchor = next(s for s in stops if s.depth == 0 and s.kind == "code")
+    assert anchor.target_path == "src/pkg/api.py"
+
+
 def test_build_tour_respects_max_stops():
     files = _repo({f"f{i}.py": (i == 0) for i in range(50)})
     pr = {f"f{i}.py": 1.0 - i * 0.01 for i in range(50)}

@@ -238,8 +238,27 @@ def build_tour(
     genuine_entries = bool(seeds)
     if not seeds:
         # Fall back to the single highest-scored documented file so the walk
-        # still has an anchor on repos with no obvious entry point.
-        seeds = [path for _, path in scored if path in documented][:1]
+        # still has an anchor on repos with no obvious entry point. Prefer a
+        # code file outside the test layer — a README or CLAUDE.md can't
+        # anchor an import walk.
+        ineligible = {
+            p.file_info.path
+            for p in parsed_files
+            if getattr(p, "file_info", None)
+            and (
+                (getattr(p.file_info, "language", "") or "").lower() in _NON_CODE_LANGUAGES
+                or infer_layer(p.file_info.path) in ADJACENT_LAYERS
+            )
+        }
+        seeds = [path for _, path in scored if path in documented and path not in ineligible][:1]
+        if not seeds:
+            # No eligible file scored at all: anchor on the most-imported
+            # eligible code file instead.
+            eligible = sorted(
+                (p for p in documented if p not in ineligible),
+                key=lambda p: (-pagerank.get(p, 0.0), p),
+            )
+            seeds = eligible[:1] or [path for _, path in scored if path in documented][:1]
     depths = _bfs_depths(seeds, adjacency, documented)
 
     # Documented files never reached from a seed still belong in the tour;
