@@ -449,12 +449,27 @@ def _curate_tour(
     # Infra files (Docker/CI/etc.) close the tour; everything else is code.
     infra_paths = [p for p in paths if type_by_path.get(p) in {"service", "pipeline"}]
 
+    # The overview step retargets to the root README — keep that file out of
+    # the walk so the tour never visits it twice. Tests and example programs
+    # are excluded from the walk universe *before* build_tour spends its step
+    # budget; otherwise a samples-heavy repo (express) fills the budget with
+    # stops that get filtered away afterwards.
+    readme = _readme_overview_node(kg)
+    overview_target = readme["filePath"] if readme is not None else None
+    walk_universe = [
+        p
+        for p in paths
+        if p != overview_target
+        and file_layers.get(p) not in ADJACENT_LAYERS
+        and not is_example_path(p)
+    ]
+
     project_name = kg.project.get("name") or "repository"
     base = build_tour(
         parsed_files,
         pagerank,
         _file_import_edges(graph_builder),
-        file_page_paths=paths,
+        file_page_paths=walk_universe,
         infra_paths=infra_paths,
         repo_name=project_name,
         max_stops=DEFAULT_MAX_STOPS,
@@ -463,11 +478,8 @@ def _curate_tour(
     overview = [s for s in base if s.kind == "overview"]
     infra = [s for s in base if s.kind == "infra"]
     base_code = {s.target_path: s for s in base if s.kind == "code"}
-
-    # The overview step retargets to the root README; keep that file out of
-    # the walk so the tour never visits it twice.
-    readme = _readme_overview_node(kg)
-    overview_target = readme["filePath"] if (overview and readme is not None) else None
+    if not overview:
+        overview_target = None
 
     by_layer: dict[str, list[str]] = defaultdict(list)
     for p in paths:
