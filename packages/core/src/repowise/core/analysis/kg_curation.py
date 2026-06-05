@@ -339,6 +339,10 @@ def _curate_entry_points(
         if "entry_point" not in tags:
             continue
         path = node.get("filePath", "")
+        if infer_layer(path) in ADJACENT_LAYERS:
+            # Test fixtures (a wsgi.py inside tests/) may carry the ingestion
+            # flag, but they are not where a reader enters the system.
+            continue
         pf = pf_by_path.get(path)
         if pf is not None and _is_barrel(pf):
             new_tags = [t for t in tags if t != "entry_point"]

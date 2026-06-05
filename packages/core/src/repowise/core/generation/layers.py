@@ -31,6 +31,8 @@ from pathlib import PurePosixPath
 # from the deepest segment outward (the closest directory wins).
 # ---------------------------------------------------------------------------
 
+_TEST_DIR_TOKENS = frozenset({"__tests__", "test", "tests", "spec", "specs", "e2e"})
+
 _LAYER_HINTS: tuple[tuple[str, frozenset[str]], ...] = (
     ("CLI", frozenset({"cli", "commands", "cmd", "cli_commands"})),
     ("API", frozenset({"routes", "api", "controllers", "endpoints", "handlers", "routers"})),
@@ -40,7 +42,7 @@ _LAYER_HINTS: tuple[tuple[str, frozenset[str]], ...] = (
     ("Middleware", frozenset({"middleware", "plugins", "interceptors", "guards"})),
     ("Utility", frozenset({"utils", "helpers", "common", "shared", "tools", "util"})),
     ("Config", frozenset({"config", "constants", "env", "settings", "conf"})),
-    ("Test", frozenset({"__tests__", "test", "tests", "spec", "specs", "e2e"})),
+    ("Test", _TEST_DIR_TOKENS),
     ("Types", frozenset({"types", "interfaces", "schemas", "contracts", "dtos", "typings"})),
 )
 
@@ -99,28 +101,33 @@ _CANONICAL_RANK: dict[str, int] = {
 def infer_layer(path: str) -> str:
     """Return the architectural layer name for *path*.
 
-    Scans path segments from the deepest directory outward and returns the
-    first layer whose hint set contains a segment. Ambiguous test-dir tokens
+    A test root anywhere on the path wins first: ``tests/models/x.py`` is a
+    test fixture, not Data, so unambiguous test dirs (``tests``/``__tests__``/
+    …) mark the file from any depth. Ambiguous test-dir tokens
     (``spec``/``specs``) count only when the filename itself looks like a test
     — a ``specs/`` directory full of ordinary modules is a specification
-    folder, not a test suite. Falls back to :data:`DEFAULT_LAYER` when nothing
-    matches.
+    folder, not a test suite. Otherwise scans path segments from the deepest
+    directory outward and returns the first layer whose hint set contains a
+    segment. Falls back to :data:`DEFAULT_LAYER` when nothing matches.
     """
     parts = [s.lower() for s in PurePosixPath(path).parts]
     filename = parts[-1] if parts else ""
     segments = parts[:-1]  # drop filename
+
+    for seg in segments:
+        if seg not in _TEST_DIR_TOKENS:
+            continue
+        if seg in _AMBIGUOUS_TEST_DIR_TOKENS and not _is_test_file_name(filename):
+            continue  # "spec(s)/" without a test-shaped file: not a test root
+        return "Test"
+
     # Deepest directory first — the closest folder describes the file best.
     for seg in reversed(segments):
         for layer_name, tokens in _LAYER_HINTS:
-            if seg not in tokens:
-                continue
-            if (
-                layer_name == "Test"
-                and seg in _AMBIGUOUS_TEST_DIR_TOKENS
-                and not _is_test_file_name(filename)
-            ):
-                continue  # "spec(s)/" without a test-shaped file: keep scanning
-            return layer_name
+            if layer_name == "Test":
+                continue  # handled above
+            if seg in tokens:
+                return layer_name
     return DEFAULT_LAYER
 
 

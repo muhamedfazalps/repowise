@@ -553,6 +553,16 @@ class TestEntryPointFallback:
         kg = _curate(repo, enabled=True)
         assert kg.project["entry_points"] == []
 
+    def test_flagged_test_fixtures_not_surfaced(self):
+        # Ingestion may flag a wsgi.py inside tests/ as an entry point; the
+        # presentation surface must keep it out (a reader enters via src/).
+        repo = build_repo(
+            ["src/app/wsgi.py", "tests/test_apps/helloworld/wsgi.py"],
+            entries={"src/app/wsgi.py", "tests/test_apps/helloworld/wsgi.py"},
+        )
+        kg = _curate(repo, enabled=True)
+        assert kg.project["entry_points"] == ["src/app/wsgi.py"]
+
 
 # ---------------------------------------------------------------------------
 # Phase 4 — node typing & never-empty summaries

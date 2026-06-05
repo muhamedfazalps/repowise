@@ -16,6 +16,7 @@ from repowise.core.generation.tour import (
 class _FI:
     path: str
     is_entry_point: bool = False
+    language: str = "python"
 
 
 @dataclass
@@ -44,6 +45,19 @@ def test_score_entry_points_excludes_zero_score():
     files = _repo({"deep/nested/pkg/thing.py": False})
     pr = {"deep/nested/pkg/thing.py": 0.0}
     assert score_entry_points(files, pr) == []
+
+
+def test_score_entry_points_withholds_stem_bonus_from_docs():
+    # docs/index.md has an entry-style stem but is markdown — it must never
+    # outrank a real main.py.
+    files = [
+        _PF(_FI(path="docs/index.md", language="markdown")),
+        _PF(_FI(path="src/main.py")),
+    ]
+    pr = {"docs/index.md": 0.9, "src/main.py": 0.5}
+    scored = {p: s for s, p in score_entry_points(files, pr)}
+    assert scored["src/main.py"] >= 3.0
+    assert scored.get("docs/index.md", 0.0) < 3.0
 
 
 # ---------------------------------------------------------------------------

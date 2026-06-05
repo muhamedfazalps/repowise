@@ -53,6 +53,28 @@ _ENTRY_FILENAME_STEMS: frozenset[str] = frozenset(
     }
 )
 
+# Doc/data languages whose files can never be execution entry points, however
+# entry-like their stem is (docs/index.md is not a program's front door).
+_NON_CODE_LANGUAGES: frozenset[str] = frozenset(
+    {
+        "markdown",
+        "md",
+        "rst",
+        "text",
+        "txt",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "ini",
+        "html",
+        "css",
+        "csv",
+        "xml",
+        "svg",
+    }
+)
+
 # Upper bound on tour stops — long enough to teach the spine, short enough to
 # stay a tour and not a table of contents.
 DEFAULT_MAX_STOPS = 12
@@ -99,9 +121,12 @@ def score_entry_points(
 
     Scoring (additive):
       * ``is_entry_point`` ingestion flag .............. +3
-      * filename stem in the entry-name set ............ +3
+      * filename stem in the entry-name set ............ +3 (code files only)
       * file at repo root or one level deep ............ +1
       * PageRank in the top 10% of all files ........... +1
+
+    The stem bonus is withheld from doc/data languages — ``docs/index.md``
+    must never outrank a real ``main.py``.
 
     Returns ``[(score, path), ...]`` sorted by score then path for stability.
     Only files with a positive score are returned.
@@ -119,7 +144,11 @@ def score_entry_points(
         score = 0.0
         if getattr(fi, "is_entry_point", False):
             score += 3.0
-        if PurePosixPath(path).stem.lower() in _ENTRY_FILENAME_STEMS:
+        language = (getattr(fi, "language", "") or "").lower()
+        if (
+            PurePosixPath(path).stem.lower() in _ENTRY_FILENAME_STEMS
+            and language not in _NON_CODE_LANGUAGES
+        ):
             score += 3.0
         if _path_depth(path) <= 1:
             score += 1.0

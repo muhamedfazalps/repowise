@@ -59,6 +59,14 @@ def test_infer_layer_unambiguous_test_dirs_take_any_file():
     assert infer_layer("src/__tests__/render.tsx") == "Test"
 
 
+def test_infer_layer_test_root_beats_deeper_hints():
+    # A fixture under tests/models/ is a test, not Data — the test root wins
+    # over any deeper directory hint.
+    assert infer_layer("tests/models/__init__.py") == "Test"
+    assert infer_layer("tests/test_apps/cliapp/app.py") == "Test"
+    assert infer_layer("test/api/fixtures.py") == "Test"
+
+
 # ---------------------------------------------------------------------------
 # compute_layer_order — top→bottom by dependency direction
 # ---------------------------------------------------------------------------
