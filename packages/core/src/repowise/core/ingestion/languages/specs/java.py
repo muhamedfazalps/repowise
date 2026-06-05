@@ -9,6 +9,8 @@ SPEC = LanguageSpec(
     # JUnit/Maven conventions: FooTest/FooTests/FooIT; Surefire/Failsafe roots.
     test_camel_suffixes=("Test", "Tests", "IT"),
     test_dir_paths=("src/test/java", "src/it/java", "src/integrationtest/java"),
+    # JPMS/javadoc descriptors — source files that declare, not implement.
+    descriptor_filenames=("module-info.java", "package-info.java"),
     extensions=frozenset({".java"}),
     grammar_package="tree_sitter_java",
     scm_file="java.scm",

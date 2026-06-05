@@ -67,9 +67,17 @@ class TestParityGoldens:
         )
 
     def test_suite_anchor_stems(self) -> None:
-        # Only conftest today — kg_curation's closing-stop search is still
-        # hard-coded to "conftest"; the consumer flip is Phase 1 work.
-        assert REGISTRY.suite_anchor_stems() == frozenset({"conftest"})
+        # Phase 1.4: ruby (rspec/minitest helpers) and elixir (ExUnit's
+        # test_helper.exs) joined python's conftest as closing-stop anchors.
+        assert REGISTRY.suite_anchor_stems() == frozenset(
+            {"conftest", "spec_helper", "test_helper"}
+        )
+
+    def test_descriptor_filenames(self) -> None:
+        # JPMS/javadoc descriptors: source files that declare, not implement.
+        assert REGISTRY.descriptor_filenames() == frozenset(
+            {"module-info.java", "package-info.java"}
+        )
 
     def test_layer_dir_hints_by_language(self) -> None:
         # Phase 1.2: per-language hints (consulted after the generic table,

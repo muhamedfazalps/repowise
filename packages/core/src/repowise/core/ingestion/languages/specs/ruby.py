@@ -8,6 +8,7 @@ SPEC = LanguageSpec(
     import_support="full",
     test_stem_suffixes=("_spec",),
     test_fixture_stems=("spec_helper", "test_helper"),
+    suite_anchor_stems=("spec_helper", "test_helper"),
     # Rails app/jobs/ (models/controllers/services are generic tokens already).
     layer_dir_hints=(("jobs", "Service"),),
     entry_point_patterns=("main.rb", "app.rb", "config.ru"),

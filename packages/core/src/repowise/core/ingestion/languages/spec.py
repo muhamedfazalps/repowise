@@ -87,6 +87,12 @@ class LanguageSpec:
     # Stems that anchor the tour's closing test-suite stop (conftest-likes).
     suite_anchor_stems: tuple[str, ...] = ()
 
+    # Declaration-descriptor filenames this language reserves
+    # (module-info.java, package-info.java): real source files, but they
+    # describe a module/package rather than implement anything — never a
+    # layer face or test-suite anchor however shallow they sit.
+    descriptor_filenames: tuple[str, ...] = ()
+
     # Extra (dir_hint → layer_name) hints applied ONLY to this language's
     # files (rule 12), consulted after the generic layer table at each path
     # depth. Three hint shapes, distinguished by the key:

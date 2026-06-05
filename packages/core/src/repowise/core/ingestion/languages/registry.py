@@ -182,6 +182,10 @@ class LanguageRegistry:
         """Union of test-suite anchor stems for the tour's closing stop."""
         return frozenset(p for s in self._specs.values() for p in s.suite_anchor_stems)
 
+    def descriptor_filenames(self) -> frozenset[str]:
+        """Union of declaration-descriptor filenames (module-info.java, …)."""
+        return frozenset(f for s in self._specs.values() for f in s.descriptor_filenames)
+
     def camel_test_res_by_extension(self) -> dict[str, re.Pattern[str]]:
         """Per-extension case-sensitive camel-boundary test-suffix regexes.
 

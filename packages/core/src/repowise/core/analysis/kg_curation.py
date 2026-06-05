@@ -41,6 +41,12 @@ from repowise.core.generation.tour import (
     build_tour,
     score_entry_points,
 )
+from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTRY
+
+# Closing-stop anchors (conftest, spec_helper, test_helper, …) and
+# declaration descriptors (module-info.java) — both registry-declared.
+_SUITE_ANCHOR_STEMS: frozenset[str] = _LANG_REGISTRY.suite_anchor_stems()
+_DESCRIPTOR_FILENAMES: frozenset[str] = _LANG_REGISTRY.descriptor_filenames()
 
 __all__ = [
     "KGValidation",
@@ -491,27 +497,35 @@ def _curate_tour(
 
     # One closing stop per adjacent layer present (the test suite) — tests
     # verify the system, they don't start it, so they never lead the walk.
-    # Face = the shallowest conftest when present (pytest's suite root),
-    # else the best code file, else anything (never a stray Cargo.toml
-    # if avoidable).
+    # Face = the shallowest suite anchor when present (conftest /
+    # spec_helper / test_helper — registry-declared suite roots), else the
+    # best code file, else anything (never a stray Cargo.toml if avoidable).
     closing_paths: list[str] = []
     for layer in order:
         cands = by_layer.get(layer)
         if layer not in ADJACENT_LAYERS or not cands:
             continue
-        conftests = sorted(
-            (p for p in cands if PurePosixPath(p).stem.lower() == "conftest"),
+        anchors = sorted(
+            (p for p in cands if PurePosixPath(p).stem.lower() in _SUITE_ANCHOR_STEMS),
             key=lambda p: (len(PurePosixPath(p).parts), p),
         )
-        if conftests:
-            closing_paths.append(conftests[0])
+        if anchors:
+            closing_paths.append(anchors[0])
             continue
-        code_cands = [p for p in cands if type_by_path.get(p) not in {"config", "document"}]
+        code_cands = [
+            p
+            for p in cands
+            if type_by_path.get(p) not in {"config", "document"}
+            # Declaration descriptors (module-info.java) are source files
+            # that describe a module, not tests — gson's shallow JPMS
+            # descriptor must never face the suite.
+            and PurePosixPath(p).name not in _DESCRIPTOR_FILENAMES
+        ]
         if code_cands:
-            # No conftest (non-pytest suites): prefer the repo's dominant
-            # language (gson's suite face is a .java, not a stray .proto),
-            # then the shallowest test-root file (django's tests/runtests.py),
-            # most-imported as the tie-break.
+            # No suite anchor (non-pytest/rspec suites): prefer the repo's
+            # dominant language (gson's suite face is a .java, not a stray
+            # .proto), then the shallowest test-root file (django's
+            # tests/runtests.py), most-imported as the tie-break.
             code_cands.sort(
                 key=lambda p: (
                     lang_by_path.get(p, "") != dominant_lang,
@@ -628,6 +642,33 @@ def _curate_tour(
             }
         )
 
+    # Polyglot fairness (rule 12): languages holding ≥20% of the code with
+    # their own test files get named in the closing-stop reason — the stop
+    # faces the dominant suite, but the others must not vanish.
+    lang_counts = Counter(code_langs)
+    total_code = sum(lang_counts.values()) or 1
+    test_langs = {
+        lang_by_path.get(p, "")
+        for layer in ADJACENT_LAYERS
+        for p in by_layer.get(layer, [])
+    }
+    other_suites = sorted(
+        spec.display_name
+        for tag, n in lang_counts.items()
+        if tag != dominant_lang
+        and n / total_code >= 0.20
+        and tag in test_langs
+        and (spec := _LANG_REGISTRY.get(tag)) is not None
+    )
+    closing_reason = "The test suite — how the system's behavior is verified."
+    if other_suites:
+        closing_reason = (
+            "The test suite — how the system's behavior is verified "
+            f"(the {' and '.join(other_suites)} test suite"
+            f"{'s' if len(other_suites) > 1 else ''} live"
+            f"{'' if len(other_suites) > 1 else 's'} alongside it)."
+        )
+
     for p in closing_paths:
         order_n += 1
         layer = file_layers.get(p, "Test")
@@ -640,7 +681,7 @@ def _curate_tour(
                 "title": PurePosixPath(p).name,
                 "depth": max_depth,
                 "kind": "code",
-                "reason": "The test suite — how the system's behavior is verified.",
+                "reason": closing_reason,
                 "layer_id": f"layer:{_slugify(layer)}",
             }
         )

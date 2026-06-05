@@ -36,7 +36,7 @@
    "gson/src/main/java/com/google/gson/InstanceCreator.java",
    "gson/src/main/java/com/google/gson/internal/bind/util/ISO8601Utils.java",
    "extras/src/main/java/com/google/gson/interceptors/JsonPostDeserializer.java",
-   "test-jpms/src/test/java/module-info.java"
+   "gson/src/test/java/com/google/gson/FieldAttributesTest.java"
   ]
  }
 }

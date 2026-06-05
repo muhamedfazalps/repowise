@@ -166,21 +166,30 @@ def build_repo(
     for p in paths:
         is_test = p in tests
         is_entry = p in entries
+        # Language follows the extension (registry truth) so polyglot
+        # fixtures behave like real repos; bare paths default to python.
+        from pathlib import PurePosixPath
+
+        from repowise.core.ingestion.languages.registry import REGISTRY
+
+        lang = REGISTRY.from_extension(PurePosixPath(p).suffix)
+        if lang == "unknown":
+            lang = "python"
         if p in barrels:
             # A re-export shell: no runtime symbols, exports names only.
             pf = FakeParsedFile(
-                FakeFileInfo(p, is_test=is_test, is_entry_point=is_entry),
+                FakeFileInfo(p, language=lang, is_test=is_test, is_entry_point=is_entry),
                 symbols=[],
                 imports=[SimpleNamespace(is_reexport=True)],
                 exports=["A", "B"],
             )
         else:
             pf = FakeParsedFile(
-                FakeFileInfo(p, is_test=is_test, is_entry_point=is_entry),
+                FakeFileInfo(p, language=lang, is_test=is_test, is_entry_point=is_entry),
                 symbols=[FakeSymbol(name="thing", kind="function")],
             )
         parsed.append(pf)
-        nodes[p] = {"node_type": "file", "language": "python"}
+        nodes[p] = {"node_type": "file", "language": lang}
         if is_test:
             nodes[p]["is_test"] = True
         if is_entry:
@@ -731,3 +740,95 @@ class TestSummaryFloorDeferral:
         apply_summary_floor(kg, typed_repo.parsed)
         assert _node_by_path(kg, "src/api/route.py")["summary"] == "Rich page summary."
         assert all(n["summary"] for n in kg.nodes if n["id"].startswith("file:"))
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.4 — closing-stop parity (suite anchors, descriptors, polyglot)
+# ---------------------------------------------------------------------------
+
+
+def _closing_stops(kg) -> list[dict]:
+    return [s for s in kg.tour if "test suite" in s["reason"]]
+
+
+class TestClosingStopParity:
+    def test_descriptor_never_faces_the_suite(self):
+        # gson regression: a shallow JPMS module-info.java sits in the Test
+        # layer; the closing stop must face a real camel test instead.
+        repo = build_repo(
+            [
+                "src/main/java/com/x/App.java",
+                "src/main/java/com/x/Core.java",
+                "jpms/src/test/java/module-info.java",
+                "src/test/java/com/x/core/AppTest.java",
+            ],
+            entries={"src/main/java/com/x/App.java"},
+            edges=[("src/main/java/com/x/App.java", "src/main/java/com/x/Core.java")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "src/test/java/com/x/core/AppTest.java"
+
+    def test_ruby_suite_anchor_wins(self):
+        repo = build_repo(
+            [
+                "lib/app.rb",
+                "lib/core.rb",
+                "test/test_helper.rb",
+                "test/app_test.rb",
+            ],
+            entries={"lib/app.rb"},
+            edges=[("lib/app.rb", "lib/core.rb")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "test/test_helper.rb"
+
+    def test_runner_face_preserved_without_anchor(self):
+        # django-style: no conftest, the suite runner is the shallowest
+        # dominant-language file — it must keep facing the suite.
+        repo = build_repo(
+            [
+                "src/app.py",
+                "src/core.py",
+                "tests/runtests.py",
+                "tests/test_deep/test_one.py",
+            ],
+            entries={"src/app.py"},
+            edges=[("src/app.py", "src/core.py")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "tests/runtests.py"
+
+    def test_polyglot_closing_reason_mentions_other_suites(self):
+        # 6 python + 4 ts code files (40% ts) with a ts test tree: the stop
+        # faces the python suite but names the TypeScript one.
+        repo = build_repo(
+            [
+                "src/a.py", "src/b.py", "src/c.py", "src/d.py", "src/e.py", "src/f.py",
+                "web/x.ts", "web/y.ts", "web/z.ts", "web/w.ts",
+                "tests/conftest.py",
+                "web/__tests__/x.test.ts",
+            ],
+            entries={"src/a.py"},
+            edges=[("src/a.py", "src/b.py")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "tests/conftest.py"
+        assert "TypeScript test suite lives alongside it" in closing[0]["reason"]
+
+    def test_monoglot_reason_unchanged(self):
+        repo = build_repo(
+            ["src/app.py", "src/core.py", "tests/conftest.py"],
+            entries={"src/app.py"},
+            edges=[("src/app.py", "src/core.py")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert closing[0]["reason"] == "The test suite — how the system's behavior is verified."
