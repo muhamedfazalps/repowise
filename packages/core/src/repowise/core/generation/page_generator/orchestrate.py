@@ -293,16 +293,25 @@ class _GenerationRun:
 
         import_edges = self._file_import_edges()
 
-        # Tour: ordered stops over the selected file/infra pages + overview.
-        stops = build_tour(
-            self.parsed_files,
-            self.pagerank,
-            import_edges,
-            file_page_paths=self.sel_file_paths,
-            infra_paths=self.sel_infra_paths,
-            repo_name=self.repo_name,
-        )
-        self.tour_stops = [s.as_dict() for s in stops]
+        # When the indexed KG carries the curated tour (project.graph_mode is
+        # written only by the curation pass), adopt it wholesale instead of
+        # re-deriving a second, divergent tour from the raw graph: the curated
+        # tour knows the repo's honesty mode (flow/sparse/structural), walks
+        # imports-type edges only, and excludes support paths — and the wiki's
+        # file cards already cite its steps. One tour, every surface.
+        if self.kg_ctx.available and self.kg_ctx.get_graph_mode():
+            self.tour_stops = [dict(s) for s in self.kg_ctx.get_tour()]
+        if not self.tour_stops:
+            # Tour: ordered stops over the selected file/infra pages + overview.
+            stops = build_tour(
+                self.parsed_files,
+                self.pagerank,
+                import_edges,
+                file_page_paths=self.sel_file_paths,
+                infra_paths=self.sel_infra_paths,
+                repo_name=self.repo_name,
+            )
+            self.tour_stops = [s.as_dict() for s in stops]
 
         # Layer spine: every documented file gets a layer (KG when present,
         # path-based inference otherwise), then layers are ordered top→bottom

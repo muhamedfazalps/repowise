@@ -38,6 +38,7 @@ class KnowledgeGraphContext:
         self._file_to_node: dict[str, dict] = {}
         self._layers: list[dict] = []
         self._tour: list[dict] = []
+        self._project: dict = {}
         self._edges_by_source: dict[str, list[dict]] = {}
         self._edges_by_target: dict[str, list[dict]] = {}
         self._loaded = False
@@ -72,13 +73,21 @@ class KnowledgeGraphContext:
                     if fp not in self._file_to_layer:
                         self._file_to_layer[fp] = layer
 
+        self._project = kg.get("project") or {}
         self._tour: list[dict] = kg.get("tour", [])
         for step in self._tour:
-            for node_id in step.get("nodeIds", []):
-                if node_id.startswith("file:"):
-                    fp = node_id[5:]
-                    if (repo_root / fp).exists():
-                        self._file_to_tour[fp] = step
+            # Curated tour steps carry a single target_path; the older shape
+            # listed nodeIds. Accept both.
+            paths = [
+                node_id[5:]
+                for node_id in step.get("nodeIds", [])
+                if node_id.startswith("file:")
+            ]
+            if step.get("target_path"):
+                paths.append(step["target_path"])
+            for fp in paths:
+                if (repo_root / fp).exists():
+                    self._file_to_tour[fp] = step
 
         for edge in kg.get("edges", []):
             src = edge.get("source", "")
@@ -136,7 +145,9 @@ class KnowledgeGraphContext:
             role=role,
             neighbors=neighbors[:10],
             tour_step={"order": tour["order"], "title": tour["title"],
-                       "description": tour["description"][:300]} if tour else None,
+                       # Curated steps state their evidence in "reason".
+                       "description": (tour.get("description") or tour.get("reason") or "")[:300]}
+            if tour else None,
             tags=node.get("tags", []),
             node_summary=node.get("summary", ""),
         )
@@ -146,6 +157,14 @@ class KnowledgeGraphContext:
 
     def get_tour(self) -> list[dict]:
         return self._tour if self._loaded else []
+
+    def get_graph_mode(self) -> str | None:
+        """The curation pass's honesty mode (flow/sparse/structural).
+
+        Only the curated export writes ``project.graph_mode`` — its presence
+        is the marker that the KG (and its tour) went through curation.
+        """
+        return self._project.get("graph_mode") if self._loaded else None
 
     def get_inter_layer_edges(self, layer: dict) -> tuple[list[dict], list[dict]]:
         """Return (deps_out, deps_in) aggregated by target/source layer."""
