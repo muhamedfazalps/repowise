@@ -214,6 +214,46 @@ def _mark_cpp_entry_point_files(parsed_files: dict, graph: Any) -> None:
             node["is_entry_point"] = True
 
 
+_SWIFT_ENTRY_RE = None  # compiled lazily inside _warmup_swift
+
+
+def _warmup_swift(ctx: "ResolverContext") -> None:
+    """Stamp ``is_entry_point`` on Swift files carrying an entry attribute.
+
+    ``@main`` / ``@UIApplicationMain`` / ``@NSApplicationMain`` mark the
+    process entry type; no call edge ever points at it, so without the
+    flag the app's actual starting point reads as unreachable.
+    """
+    import re
+
+    global _SWIFT_ENTRY_RE
+    if _SWIFT_ENTRY_RE is None:
+        _SWIFT_ENTRY_RE = re.compile(
+            r"^\s*@(?:main|UIApplicationMain|NSApplicationMain)\b", re.MULTILINE
+        )
+
+    graph = getattr(ctx, "graph", None)
+    parsed_files = getattr(ctx, "parsed_files", None) or {}
+    if graph is None:
+        return
+    for path, parsed in parsed_files.items():
+        if parsed.file_info.language != "swift":
+            continue
+        abs_path = getattr(parsed.file_info, "abs_path", None)
+        if not abs_path:
+            continue
+        try:
+            with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+                src = f.read()
+        except OSError:
+            continue
+        if not _SWIFT_ENTRY_RE.search(src):
+            continue
+        node = graph.nodes.get(path)
+        if node is not None:
+            node["is_entry_point"] = True
+
+
 def _warmup_dotnet(ctx: "ResolverContext") -> None:
     from .resolvers.dotnet import get_or_build_index
 
@@ -286,6 +326,7 @@ _WARMUPS: dict[str, tuple[str, Warmup]] = {
     "javascript": ("graph.ts_index", _warmup_typescript),
     "cpp": ("graph.cpp_index", _warmup_cpp),
     "c": ("graph.cpp_index", _warmup_cpp),
+    "swift": ("graph.swift_entry", _warmup_swift),
 }
 
 

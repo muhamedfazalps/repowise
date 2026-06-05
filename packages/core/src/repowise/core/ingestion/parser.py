@@ -604,6 +604,10 @@ class ASTParser:
                     if child.type == "visibility_modifier":
                         is_reexport = True
                         break
+            # Swift: ``@_exported import FooKit`` re-exports the module —
+            # importers of THIS module see FooKit's symbols too.
+            elif file_info.language == "swift" and raw.startswith("@_exported"):
+                is_reexport = True
 
             imports.append(
                 Import(

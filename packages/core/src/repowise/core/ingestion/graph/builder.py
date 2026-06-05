@@ -385,6 +385,11 @@ class GraphBuilder(MetricsMixin, ResolveMixin, EdgesMixin, SerializeMixin, Rehyd
         # packages don't read as disconnected files.
         self._resolve_jvm_same_package(ctx, progress=progress)
 
+        # --- Swift intra-module type references ---
+        # Swift files see same-target siblings with no import statement;
+        # emit conservative type-reference edges per SPM target.
+        self._resolve_swift_same_module(ctx, progress=progress)
+
         # --- Phase 2: Resolve heritage (extends/implements) ---
         self._resolve_heritage(import_targets, progress=progress)
 

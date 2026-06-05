@@ -143,6 +143,42 @@ class ResolveMixin:
                 if callable(done):
                     done(phase)
 
+    def _resolve_swift_same_module(self, ctx: Any, progress: Any | None = None) -> None:
+        """Emit same-module ``imports`` edges for Swift files.
+
+        Swift has no intra-module imports by design — every file in an
+        SPM target sees every sibling's top-level declarations — so
+        targets otherwise read as edge deserts. Conservative text-level
+        scan against the per-target declared-type map.
+        """
+        from ..languages.swift_same_module import (
+            collect_swift_source_texts,
+            resolve_swift_same_module_refs,
+        )
+        from ..resolvers.swift_spm import get_or_build_swift_targets
+
+        has_swift = any(
+            pf.file_info.language == "swift" for pf in self._parsed_files.values()
+        )
+        if not has_swift:
+            return
+
+        phase = "graph.same_module"
+        if progress:
+            progress.on_phase_start(phase, None)
+        try:
+            swift_targets = get_or_build_swift_targets(ctx)
+            texts = collect_swift_source_texts(self._parsed_files)
+            added = resolve_swift_same_module_refs(self._graph, swift_targets, texts)
+            log.info("same_module_edges", language="swift", added=added)
+        except Exception as exc:
+            log.warning("swift_same_module_failed", error=str(exc))
+        finally:
+            if progress:
+                done = getattr(progress, "on_phase_done", None)
+                if callable(done):
+                    done(phase)
+
     def _resolve_go_interface_satisfaction(self, progress: Any | None = None) -> None:
         """Emit ``method_implements`` edges for Go structural interface
         satisfaction.
