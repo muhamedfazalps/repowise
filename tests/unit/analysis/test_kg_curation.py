@@ -535,6 +535,22 @@ class TestCuratedTour:
         assert len(readme_steps) == 1
         assert readme_steps[0]["kind"] == "overview"
 
+    def test_codeless_layers_get_no_manufactured_stop(self):
+        # A "plugins" dir of JSON manifests mints a Middleware layer with no
+        # code — the tour must not manufacture an anchor stop for it. The
+        # code files exceed the walk budget so a manifest could only appear
+        # via diversification.
+        code = ["src/cli/main.py"] + [f"src/services/svc{i}.py" for i in range(14)]
+        paths = code + [f"plugins/p{i}/plugin.json" for i in range(3)]
+        repo = build_repo(
+            paths,
+            entries={"src/cli/main.py"},
+            edges=[("src/cli/main.py", p) for p in code[1:]],
+        )
+        kg = _curate(repo, enabled=True)
+        for step in kg.tour:
+            assert not step["target_path"].endswith("plugin.json")
+
     def test_barrel_steps_never_claim_entry_point(self):
         # An index.ts barrel may legitimately seed the walk, but its reason
         # must say re-export hub, not execution entry point.
