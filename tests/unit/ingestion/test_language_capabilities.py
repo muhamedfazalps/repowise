@@ -145,7 +145,16 @@ _FULL = {
     "swift",
     "typescript",
 }
-_PARTIAL = {"luau", "scala"}
+_PARTIAL = {
+    "luau",
+    "scala",
+    # Lightweight regex-tier resolvers (module-name index + import regexes).
+    "elixir",
+    "dart",
+    "clojure",
+    "haskell",
+    "erlang",
+}
 
 
 class TestImportSupportTiers:

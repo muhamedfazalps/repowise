@@ -8,6 +8,9 @@ SPEC = LanguageSpec(
     # hspec convention: FooSpec.hs under test/.
     test_camel_suffixes=("Spec",),
     entry_point_patterns=("Main.hs",),
+    manifest_files=("package.yaml", "stack.yaml"),
     extensions=frozenset({".hs", ".lhs"}),
     is_passthrough=True,
+    # Lightweight regex resolver: import statements → module declaration index.
+    import_support="partial",
 )

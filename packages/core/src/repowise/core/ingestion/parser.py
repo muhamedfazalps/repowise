@@ -234,10 +234,15 @@ class ASTParser:
                     language=lang,
                     path=file_info.path,
                 )
+            # Languages without a grammar may still carry regex-tier import
+            # extraction (their specs declare import_support="partial");
+            # symbols stay empty — the regex tier claims no symbol knowledge.
+            from .lightweight_imports import extract_lightweight_imports
+
             return ParsedFile(
                 file_info=file_info,
                 symbols=[],
-                imports=[],
+                imports=extract_lightweight_imports(file_info, source),
                 exports=[],
                 docstring=None,
                 parse_errors=[],

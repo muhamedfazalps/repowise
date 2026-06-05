@@ -918,30 +918,34 @@ _FLOW_CLAIMS = (
 )
 
 
-def _edgeless_elixir_repo():
-    """A Tier-3 repo: real code files, import_support='none', zero edges."""
+def _edgeless_zig_repo():
+    """A Tier-3 repo: real code files, import_support='none', zero edges.
+
+    Zig stays on the structural (no-resolver) tier — elixir, the previous
+    fixture language, was promoted to the lightweight regex tier.
+    """
     paths = [
-        "lib/shop.ex",
-        "lib/shop/application.ex",
-        "lib/shop/checkout.ex",
-        "lib/shop/cart.ex",
-        "lib/shop/billing/invoice.ex",
-        "priv/repo/seeds.exs",
-        "test/shop_test.exs",
-        "test/test_helper.exs",
+        "src/shop.zig",
+        "src/application.zig",
+        "src/checkout.zig",
+        "src/cart.zig",
+        "src/billing/invoice.zig",
+        "tools/seeds.zig",
+        "test/shop_test.zig",
+        "test/helper.zig",
         "README.md",
     ]
-    return build_repo(paths, tests={"test/shop_test.exs", "test/test_helper.exs"})
+    return build_repo(paths, tests={"test/shop_test.zig", "test/helper.zig"})
 
 
 class TestHonestDegradation:
     def test_structural_mode_for_unsupported_language(self):
-        repo = _edgeless_elixir_repo()
+        repo = _edgeless_zig_repo()
         kg = _curate(repo, enabled=True)
         assert kg.project["graph_mode"] == "structural"
 
     def test_structural_tour_makes_no_flow_claims(self):
-        repo = _edgeless_elixir_repo()
+        repo = _edgeless_zig_repo()
         kg = _curate(repo, enabled=True)
         assert kg.tour, "structural repos still get a tour"
         for step in kg.tour:
@@ -950,16 +954,16 @@ class TestHonestDegradation:
                 assert claim not in low, (step["target_path"], step["reason"])
 
     def test_structural_anchor_states_the_evidence_and_the_gap(self):
-        repo = _edgeless_elixir_repo()
+        repo = _edgeless_zig_repo()
         kg = _curate(repo, enabled=True)
         code_steps = [s for s in kg.tour if s["kind"] == "code" and "test" not in s["reason"].lower()]
         assert code_steps, kg.tour
         anchor = code_steps[0]
-        assert "isn't supported for Elixir yet" in anchor["reason"]
+        assert "isn't supported for Zig yet" in anchor["reason"]
         assert anchor["depth"] == 0
 
     def test_structural_layers_labeled_canonical(self):
-        repo = _edgeless_elixir_repo()
+        repo = _edgeless_zig_repo()
         kg = _curate(repo, enabled=True)
         assert kg.layers
         assert all(layer.get("order_basis") == "canonical" for layer in kg.layers)

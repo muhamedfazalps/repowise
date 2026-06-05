@@ -15,4 +15,6 @@ SPEC = LanguageSpec(
     manifest_files=("mix.exs",),
     extensions=frozenset({".ex", ".exs"}),
     is_passthrough=True,
+    # Lightweight regex resolver: alias/import/use/require → defmodule index.
+    import_support="partial",
 )
