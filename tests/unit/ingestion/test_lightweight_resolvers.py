@@ -1,6 +1,6 @@
 """Unit tests for the lightweight (regex-tier) import extractors + resolvers.
 
-Covers Elixir, Dart, Clojure, Haskell, and Erlang: each import form the
+Covers Elixir, Dart, Clojure, Haskell, Erlang, and F#: each import form the
 extractor claims, the declared-module index (declaration + path-convention
 inverse), relative/package forms, and false-positive guards.
 """
@@ -82,6 +82,7 @@ class TestDispatch:
             "clojure",
             "haskell",
             "erlang",
+            "fsharp",
         }
 
     def test_other_language_returns_empty(self) -> None:
@@ -532,3 +533,128 @@ class TestErlangResolution:
             "src/my_behaviour.erl"
         )
         assert resolve_erlang_import("gen_server", "src/a.erl", ctx) is None
+
+
+# ---------------------------------------------------------------------------
+# F#
+# ---------------------------------------------------------------------------
+
+
+class TestFSharpExtraction:
+    def test_open_forms(self) -> None:
+        from repowise.core.ingestion.lightweight_imports.fsharp import (
+            extract_fsharp_imports,
+        )
+
+        src = (
+            "namespace MyApp.Core\n"
+            "open System\n"
+            "open MyApp.Domain\n"
+            "open type System.Math\n"
+            "let x = 1\n"
+        )
+        assert _modules(extract_fsharp_imports(src)) == [
+            "System",
+            "MyApp.Domain",
+            "System.Math",
+        ]
+
+
+class TestFSharpResolution:
+    def test_unambiguous_module_resolves(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.resolvers.fsharp import resolve_fsharp_import
+
+        ctx = _ctx(
+            tmp_path,
+            {
+                "src/Domain.fs": "module MyApp.Domain\n",
+                "src/App.fs": "module MyApp.App\nopen MyApp.Domain\n",
+            },
+        )
+        assert resolve_fsharp_import("MyApp.Domain", "src/App.fs", ctx) == "src/Domain.fs"
+
+    def test_ambiguous_namespace_yields_no_edge(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.resolvers.fsharp import resolve_fsharp_import
+
+        ctx = _ctx(
+            tmp_path,
+            {
+                "src/A.fs": "namespace MyApp.Core\n",
+                "src/B.fs": "namespace MyApp.Core\n",
+                "src/C.fs": "module MyApp.App\n",
+            },
+        )
+        assert resolve_fsharp_import("MyApp.Core", "src/C.fs", ctx) is None
+
+    def test_nested_module_binding_not_indexed(self, tmp_path: Path) -> None:
+        # `module Helpers =` is a nested binding, not a file-level decl.
+        from repowise.core.ingestion.resolvers.fsharp import resolve_fsharp_import
+
+        ctx = _ctx(
+            tmp_path,
+            {
+                "src/Lib.fs": "module MyApp.Lib\nmodule Helpers =\n    let x = 1\n",
+                "src/App.fs": "module MyApp.App\n",
+            },
+        )
+        # trailing strip: open MyApp.Lib.Helpers hits the file-level MyApp.Lib
+        assert resolve_fsharp_import("MyApp.Lib.Helpers", "src/App.fs", ctx) == "src/Lib.fs"
+
+    def test_dotnet_namespaces_dropped(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.resolvers.fsharp import resolve_fsharp_import
+
+        ctx = _ctx(tmp_path, {"src/App.fs": "module MyApp.App\n"})
+        assert resolve_fsharp_import("System.IO", "src/App.fs", ctx) is None
+        assert resolve_fsharp_import("FSharp.Control", "src/App.fs", ctx) is None
+
+    def test_unknown_namespace_external(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.resolvers.fsharp import resolve_fsharp_import
+
+        ctx = _ctx(tmp_path, {"src/App.fs": "module MyApp.App\n"})
+        assert resolve_fsharp_import("Newtonsoft.Json", "src/App.fs", ctx) == (
+            "external:Newtonsoft.Json"
+        )
+
+
+class TestFSharpCompileOrder:
+    def test_adjacent_spine_edges(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.languages.fsharp_compile_order import (
+            add_fsharp_compile_order_edges,
+        )
+
+        (tmp_path / "src").mkdir(parents=True)
+        (tmp_path / "src/App.fsproj").write_text(
+            "<Project>\n  <ItemGroup>\n"
+            '    <Compile Include="Domain.fs" />\n'
+            '    <Compile Include="Logic.fs" />\n'
+            '    <Compile Include="Program.fs" />\n'
+            '    <Compile Include="$(Generated)/Gen.fs" />\n'
+            "  </ItemGroup>\n</Project>\n"
+        )
+        graph = nx.DiGraph()
+        for p in ("src/Domain.fs", "src/Logic.fs", "src/Program.fs"):
+            graph.add_node(p)
+        added = add_fsharp_compile_order_edges(graph, tmp_path)
+        assert added == 2
+        assert graph.has_edge("src/Logic.fs", "src/Domain.fs")
+        assert graph.has_edge("src/Program.fs", "src/Logic.fs")
+        edge = graph["src/Logic.fs"]["src/Domain.fs"]
+        assert edge["edge_type"] == "imports"
+        assert edge["hint_source"] == "compile_order"
+
+    def test_existing_edge_wins(self, tmp_path: Path) -> None:
+        from repowise.core.ingestion.languages.fsharp_compile_order import (
+            add_fsharp_compile_order_edges,
+        )
+
+        (tmp_path / "App.fsproj").write_text(
+            '<Project><ItemGroup><Compile Include="A.fs" /><Compile Include="B.fs" />'
+            "</ItemGroup></Project>"
+        )
+        graph = nx.DiGraph()
+        graph.add_node("A.fs")
+        graph.add_node("B.fs")
+        graph.add_edge("B.fs", "A.fs", edge_type="imports", imported_names=["X"])
+        added = add_fsharp_compile_order_edges(graph, tmp_path)
+        assert added == 0
+        assert graph["B.fs"]["A.fs"]["imported_names"] == ["X"]

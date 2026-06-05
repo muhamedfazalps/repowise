@@ -400,6 +400,39 @@ class ResolveMixin:
                 if callable(done):
                     done(phase)
 
+    def _resolve_fsharp_compile_order(self, ctx: Any, progress: Any | None = None) -> None:
+        """Emit fsproj compile-order ``imports`` hint edges for F# files.
+
+        F# compiles project files in fsproj declaration order and a file
+        may only reference earlier files — the order is a real dependency
+        constraint. Adjacent pairs contribute ``later → earlier`` edges so
+        projects whose files rarely ``open`` their own namespaces don't
+        read as edge deserts.
+        """
+        from ..languages.fsharp_compile_order import add_fsharp_compile_order_edges
+
+        has_fsharp = any(
+            pf.file_info.language == "fsharp" for pf in self._parsed_files.values()
+        )
+        if not has_fsharp or ctx.repo_path is None:
+            return
+
+        phase = "graph.compile_order"
+        if progress:
+            progress.on_phase_start(phase, None)
+        try:
+            added = add_fsharp_compile_order_edges(
+                self._graph, ctx.repo_path, prune_nested_git=ctx.prune_nested_git
+            )
+            log.info("compile_order_edges", language="fsharp", added=added)
+        except Exception as exc:
+            log.warning("fsharp_compile_order_failed", error=str(exc))
+        finally:
+            if progress:
+                done = getattr(progress, "on_phase_done", None)
+                if callable(done):
+                    done(phase)
+
     def _resolve_go_interface_satisfaction(self, progress: Any | None = None) -> None:
         """Emit ``method_implements`` edges for Go structural interface
         satisfaction.

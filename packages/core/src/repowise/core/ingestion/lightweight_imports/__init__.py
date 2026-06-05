@@ -18,6 +18,7 @@ from .clojure import extract_clojure_imports
 from .dart import extract_dart_imports
 from .elixir import extract_elixir_imports
 from .erlang import extract_erlang_imports
+from .fsharp import extract_fsharp_imports
 from .haskell import extract_haskell_imports
 
 ExtractorFn = Callable[[str], list[Import]]
@@ -28,6 +29,7 @@ _EXTRACTORS: dict[str, ExtractorFn] = {
     "clojure": extract_clojure_imports,
     "haskell": extract_haskell_imports,
     "erlang": extract_erlang_imports,
+    "fsharp": extract_fsharp_imports,
 }
 
 LIGHTWEIGHT_IMPORT_LANGUAGES = frozenset(_EXTRACTORS)

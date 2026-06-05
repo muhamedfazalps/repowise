@@ -11,6 +11,7 @@ from .csharp import resolve_csharp_import
 from .dart import resolve_dart_import
 from .elixir import resolve_elixir_import
 from .erlang import resolve_erlang_import
+from .fsharp import resolve_fsharp_import
 from .generic import resolve_generic_import
 from .go import resolve_go_import
 from .haskell import resolve_haskell_import
@@ -49,6 +50,7 @@ _RESOLVERS: dict[str, ResolverFn] = {
     "clojure": resolve_clojure_import,
     "haskell": resolve_haskell_import,
     "erlang": resolve_erlang_import,
+    "fsharp": resolve_fsharp_import,
 }
 
 

@@ -154,6 +154,7 @@ _PARTIAL = {
     "clojure",
     "haskell",
     "erlang",
+    "fsharp",
 }
 
 

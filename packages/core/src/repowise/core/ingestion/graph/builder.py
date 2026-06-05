@@ -411,6 +411,12 @@ class GraphBuilder(MetricsMixin, ResolveMixin, EdgesMixin, SerializeMixin, Rehyd
         # emit conservative type-reference edges per SPM target.
         self._resolve_swift_same_module(ctx, progress=progress)
 
+        # --- F# fsproj compile-order spine ---
+        # fsproj <Compile Include> order is a real dependency constraint
+        # (files may only reference earlier files); adjacent pairs keep
+        # open-light projects connected.
+        self._resolve_fsharp_compile_order(ctx, progress=progress)
+
         # --- Phase 2: Resolve heritage (extends/implements) ---
         self._resolve_heritage(import_targets, progress=progress)
 
