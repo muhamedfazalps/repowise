@@ -21,6 +21,14 @@ from collections.abc import Iterable
 from .spec import LanguageSpec
 from .specs import ALL_SPECS as _SPECS
 
+# Entry-point filename stems that are conventional across languages rather
+# than owned by any one of them ("bootstrap.php", "entry.ts", "cli.py",
+# "server.go", "main.rs", "app.py", "index.js" …). Language-unique stems
+# (manage/wsgi/asgi/__main__ → python, mod → rust) live on their specs.
+_GENERIC_ENTRY_STEMS: frozenset[str] = frozenset(
+    {"main", "index", "app", "server", "cli", "bootstrap", "entry"}
+)
+
 # =========================================================================
 # LanguageRegistry
 # =========================================================================
@@ -119,6 +127,49 @@ class LanguageRegistry:
         tag_set = set(tags)
         return frozenset(
             ext for spec in self._specs.values() if spec.tag in tag_set for ext in spec.extensions
+        )
+
+    # -- Knowledge-graph capability lookups --------------------------------
+
+    def import_support_map(self) -> dict[str, str]:
+        """Return ``{tag: "full" | "partial" | "none"}`` for every language."""
+        return {s.tag: s.import_support for s in self._specs.values()}
+
+    def import_support_for(self, tag: str) -> str:
+        """Return the import-support tier for *tag* (``"none"`` if unknown)."""
+        spec = self._specs.get(tag)
+        return spec.import_support if spec else "none"
+
+    def entry_filename_stems(self) -> frozenset[str]:
+        """Generic + per-language entry-point filename stems (tour bonus set)."""
+        return _GENERIC_ENTRY_STEMS | frozenset(
+            stem for s in self._specs.values() for stem in s.entry_stems
+        )
+
+    def test_stem_prefixes(self) -> tuple[str, ...]:
+        """Union of test filename-stem prefixes, sorted for determinism."""
+        return tuple(sorted({p for s in self._specs.values() for p in s.test_stem_prefixes}))
+
+    def test_stem_suffixes(self) -> tuple[str, ...]:
+        """Union of test filename-stem suffixes, sorted for determinism."""
+        return tuple(sorted({p for s in self._specs.values() for p in s.test_stem_suffixes}))
+
+    def test_infixes(self) -> tuple[str, ...]:
+        """Union of test filename infixes, sorted for determinism."""
+        return tuple(sorted({p for s in self._specs.values() for p in s.test_infixes}))
+
+    def test_fixture_stems(self) -> frozenset[str]:
+        """Union of test-fixture filename stems (conftest, spec_helper, …)."""
+        return frozenset(p for s in self._specs.values() for p in s.test_fixture_stems)
+
+    def suite_anchor_stems(self) -> frozenset[str]:
+        """Union of test-suite anchor stems for the tour's closing stop."""
+        return frozenset(p for s in self._specs.values() for p in s.suite_anchor_stems)
+
+    def layer_dir_hints(self) -> tuple[tuple[str, str], ...]:
+        """Union of per-language (dir_token, layer_name) hints, sorted."""
+        return tuple(
+            sorted({h for s in self._specs.values() for h in s.layer_dir_hints})
         )
 
     def all_specs(self) -> list[LanguageSpec]:

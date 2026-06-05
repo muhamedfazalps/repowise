@@ -42,6 +42,35 @@ class LanguageSpec:
     # -- Heritage --------------------------------------------------------
     heritage_node_types: frozenset[str] = field(default_factory=frozenset)
 
+    # -- Knowledge-graph capabilities --------------------------------------
+    # How well import edges can be resolved for this language today:
+    #   "full"    — dedicated resolver, validated mechanics
+    #   "partial" — dedicated resolver with major known gaps
+    #   "none"    — generic stem-lookup fallback only (passthrough/non-code)
+    # Consumed by the KG validation harness (density floors, honesty checks);
+    # the generation pipeline starts consuming it in the degradation work.
+    import_support: str = "none"
+
+    # Filename stems that mark an executable/wiring entry point *for this
+    # language only* (cross-language stems like "main"/"index" live in the
+    # registry's generic set). Union feeds the tour's entry-stem bonus.
+    entry_stems: tuple[str, ...] = ()
+
+    # Test-shaped filename rules this language contributes to layer
+    # inference (unions are consumed in generation/layers.py):
+    test_stem_prefixes: tuple[str, ...] = ()  # ("test_",)
+    test_stem_suffixes: tuple[str, ...] = ()  # ("_test", "_spec")
+    test_infixes: tuple[str, ...] = ()  # (".test.", ".spec.")
+    test_fixture_stems: tuple[str, ...] = ()  # ("conftest",)
+
+    # Stems that anchor the tour's closing test-suite stop (conftest-likes).
+    suite_anchor_stems: tuple[str, ...] = ()
+
+    # Extra (dir_token → layer_name) hints this language contributes to
+    # layer inference (e.g. Go: ("cmd", "CLI")). Empty until the parity
+    # switch-over completes; populated per-language in later phases.
+    layer_dir_hints: tuple[tuple[str, str], ...] = ()
+
     # -- Ecosystem -------------------------------------------------------
     entry_point_patterns: tuple[str, ...] = ()  # ("main.py", "app.py")
     manifest_files: tuple[str, ...] = ()  # ("pyproject.toml",)

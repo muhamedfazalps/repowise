@@ -5,6 +5,8 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="rust",
     display_name="Rust",
+    import_support="full",
+    entry_stems=("mod",),
     extensions=frozenset({".rs"}),
     grammar_package="tree_sitter_rust",
     scm_file="rust.scm",

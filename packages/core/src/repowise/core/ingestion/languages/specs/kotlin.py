@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="kotlin",
     display_name="Kotlin",
+    import_support="full",
     extensions=frozenset({".kt", ".kts"}),
     grammar_package="tree_sitter_kotlin",
     scm_file="kotlin.scm",

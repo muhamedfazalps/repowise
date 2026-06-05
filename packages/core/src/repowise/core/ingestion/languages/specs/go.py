@@ -5,6 +5,8 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="go",
     display_name="Go",
+    import_support="full",
+    test_stem_suffixes=("_test",),
     extensions=frozenset({".go"}),
     grammar_package="tree_sitter_go",
     scm_file="go.scm",

@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="cpp",
     display_name="C++",
+    import_support="full",
     extensions=frozenset({".cpp", ".cc", ".cxx", ".h", ".hpp", ".hxx"}),
     grammar_package="tree_sitter_cpp",
     scm_file="cpp.scm",

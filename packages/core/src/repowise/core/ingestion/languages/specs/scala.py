@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="scala",
     display_name="Scala",
+    import_support="partial",
     extensions=frozenset({".scala"}),
     grammar_package="tree_sitter_scala",
     scm_file="scala.scm",

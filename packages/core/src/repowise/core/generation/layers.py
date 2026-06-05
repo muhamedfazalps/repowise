@@ -24,6 +24,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import PurePosixPath
 
+from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTRY
+
 # ---------------------------------------------------------------------------
 # Directory → layer hint table. Each canonical layer maps to the
 # directory-name tokens that imply it. A
@@ -60,11 +62,14 @@ ADJACENT_LAYERS: frozenset[str] = frozenset({"Test"})
 _AMBIGUOUS_TEST_DIR_TOKENS: frozenset[str] = frozenset({"spec", "specs"})
 
 # Filename shapes that mark a test on their own (pytest, Go, Jest/Vitest,
-# RSpec/minitest fixtures, …).
-_TEST_FILE_STEM_PREFIXES = ("test_",)
-_TEST_FILE_STEM_SUFFIXES = ("_test", "_spec")
-_TEST_FILE_INFIXES = (".test.", ".spec.")
-_TEST_FIXTURE_STEMS = frozenset({"conftest", "spec_helper", "test_helper"})
+# RSpec/minitest fixtures, …). Derived from the language registry — each
+# language declares its own conventions on its spec; the union applies
+# globally here (parity with the historical hard-coded tuples is pinned by
+# tests/unit/ingestion/test_language_capabilities.py).
+_TEST_FILE_STEM_PREFIXES = _LANG_REGISTRY.test_stem_prefixes()
+_TEST_FILE_STEM_SUFFIXES = _LANG_REGISTRY.test_stem_suffixes()
+_TEST_FILE_INFIXES = _LANG_REGISTRY.test_infixes()
+_TEST_FIXTURE_STEMS = _LANG_REGISTRY.test_fixture_stems()
 
 
 def _is_test_file_name(filename: str) -> bool:

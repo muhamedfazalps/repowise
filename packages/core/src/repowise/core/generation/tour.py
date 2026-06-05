@@ -37,23 +37,13 @@ from typing import Any
 
 from repowise.core.generation.layers import ADJACENT_LAYERS, infer_layer, is_example_path
 
+from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTRY
+
 # Filenames that conventionally mark an executable / wiring entry point.
-_ENTRY_FILENAME_STEMS: frozenset[str] = frozenset(
-    {
-        "index",
-        "main",
-        "app",
-        "server",
-        "mod",
-        "manage",
-        "wsgi",
-        "asgi",
-        "cli",
-        "__main__",
-        "bootstrap",
-        "entry",
-    }
-)
+# Derived from the language registry (generic stems + per-language stems);
+# parity with the historical hard-coded set is pinned by
+# tests/unit/ingestion/test_language_capabilities.py.
+_ENTRY_FILENAME_STEMS: frozenset[str] = _LANG_REGISTRY.entry_filename_stems()
 
 # Doc/data languages whose files can never be execution entry points, however
 # entry-like their stem is (docs/index.md is not a program's front door).

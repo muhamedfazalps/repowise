@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="java",
     display_name="Java",
+    import_support="full",
     extensions=frozenset({".java"}),
     grammar_package="tree_sitter_java",
     scm_file="java.scm",

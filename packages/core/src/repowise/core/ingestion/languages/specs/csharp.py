@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="csharp",
     display_name="C#",
+    import_support="full",
     extensions=frozenset({".cs"}),
     grammar_package="tree_sitter_c_sharp",
     scm_file="csharp.scm",

@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="swift",
     display_name="Swift",
+    import_support="partial",
     extensions=frozenset({".swift"}),
     grammar_package="tree_sitter_swift",
     scm_file="swift.scm",

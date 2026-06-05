@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="php",
     display_name="PHP",
+    import_support="partial",
     extensions=frozenset({".php"}),
     grammar_package="tree_sitter_php",
     grammar_loader="language_php",

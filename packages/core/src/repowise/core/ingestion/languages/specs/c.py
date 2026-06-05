@@ -5,6 +5,7 @@ from ..spec import LanguageSpec
 SPEC = LanguageSpec(
     tag="c",
     display_name="C",
+    import_support="full",
     extensions=frozenset({".c"}),
     shares_grammar_with="cpp",
     scm_file="c.scm",
