@@ -103,6 +103,21 @@ def test_build_tour_weaves_infra_last():
     assert stops[-1].target_path == "Dockerfile"
 
 
+def test_build_tour_unreached_files_get_honest_reasons():
+    # disconnected.py is never reached from the entry point — its reason must
+    # not claim it was "reached N imports deep".
+    files = _repo({"main.py": True, "a.py": False, "disconnected.py": False})
+    pr = {"main.py": 0.9, "a.py": 0.5, "disconnected.py": 0.1}
+    edges = [("main.py", "a.py")]
+    stops = build_tour(
+        files, pr, edges, file_page_paths={"main.py", "a.py", "disconnected.py"}
+    )
+    by_path = {s.target_path: s for s in stops}
+    assert "Off the import path" in by_path["disconnected.py"].reason
+    assert "Reached" not in by_path["disconnected.py"].reason
+    assert "Directly used" in by_path["a.py"].reason  # reached ones unchanged
+
+
 def test_build_tour_respects_max_stops():
     files = _repo({f"f{i}.py": (i == 0) for i in range(50)})
     pr = {f"f{i}.py": 1.0 - i * 0.01 for i in range(50)}

@@ -318,7 +318,10 @@ def _curate_entry_points(
     barrel nodes (and adds a ``barrel`` tag) without touching the AST graph's
     ``is_entry_point`` flag (the dead-code pass relies on it). Survivors are
     ranked by ``pagerank + betweenness``; ``project.entry_points`` holds the top
-    few, ``project.entry_candidates`` the full ranked list.
+    few, ``project.entry_candidates`` the full ranked list. When ingestion
+    flagged no entries at all, the strong :func:`score_entry_points` scorers
+    (entry-style filenames) fill in, so the orientation panel never opens empty
+    on repos without a detectable main.
     """
     pf_by_path = {pf.file_info.path: pf for pf in parsed_files if getattr(pf, "file_info", None)}
     pagerank = graph_builder.pagerank() or {}
@@ -345,6 +348,21 @@ def _curate_entry_points(
             continue
         score = pagerank.get(path, 0.0) + betweenness.get(path, 0.0)
         survivors.append((score, path))
+
+    if not survivors:
+        # No ingestion-flagged entries (or all were barrels): fall back to the
+        # strong filename scorers the tour seeds from (score >= 3 means an
+        # entry-style name or flag, never just shallow/high-PageRank).
+        for s, path in score_entry_points(parsed_files, pagerank):
+            if s < 3.0:
+                continue
+            if infer_layer(path) in ADJACENT_LAYERS:
+                continue
+            pf = pf_by_path.get(path)
+            if pf is not None and _is_barrel(pf):
+                continue
+            score = pagerank.get(path, 0.0) + betweenness.get(path, 0.0)
+            survivors.append((score, path))
 
     # Highest score first; path as a stable, deterministic tie-break.
     survivors.sort(key=lambda sp: (-sp[0], sp[1]))
@@ -424,6 +442,11 @@ def _curate_tour(
     infra = [s for s in base if s.kind == "infra"]
     base_code = {s.target_path: s for s in base if s.kind == "code"}
 
+    # The overview step retargets to the root README; keep that file out of
+    # the walk so the tour never visits it twice.
+    readme = _readme_overview_node(kg)
+    overview_target = readme["filePath"] if (overview and readme is not None) else None
+
     by_layer: dict[str, list[str]] = defaultdict(list)
     for p in paths:
         by_layer[file_layers[p]].append(p)
@@ -440,7 +463,9 @@ def _curate_tour(
     walk = [
         s.target_path
         for s in base
-        if s.kind == "code" and file_layers.get(s.target_path) not in ADJACENT_LAYERS
+        if s.kind == "code"
+        and s.target_path != overview_target
+        and file_layers.get(s.target_path) not in ADJACENT_LAYERS
     ]
     budget = max(0, DEFAULT_MAX_STOPS - len(overview) - len(closing_paths) - len(infra))
     walk = walk[:budget]
@@ -462,7 +487,7 @@ def _curate_tour(
     for layer in uncovered:
         if not redundant_positions:
             break
-        candidates = [p for p in by_layer.get(layer, []) if p not in walk]
+        candidates = [p for p in by_layer.get(layer, []) if p not in walk and p != overview_target]
         if not candidates:
             continue
         rep = _best_in_layer(candidates, rank, pagerank)
@@ -476,7 +501,6 @@ def _curate_tour(
     tour: list[dict] = []
     order_n = 0
 
-    readme = _readme_overview_node(kg)
     if overview:
         order_n += 1
         ov = overview[0].as_dict()

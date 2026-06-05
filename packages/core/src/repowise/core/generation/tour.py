@@ -207,7 +207,9 @@ def build_tour(
     depths = _bfs_depths(seeds, adjacency, documented)
 
     # Documented files never reached from a seed still belong in the tour;
-    # park them after the deepest reached file, ranked by PageRank.
+    # park them after the deepest reached file, ranked by PageRank. Remember
+    # which files were genuinely reached so their reasons stay truthful.
+    reached = set(depths)
     max_reached = max(depths.values(), default=-1)
     for path in documented:
         if path not in depths:
@@ -253,6 +255,8 @@ def build_tour(
         d = depths[path]
         if d <= 0:
             reason = "An entry point — execution and imports fan out from here."
+        elif path not in reached:
+            reason = "Off the import path from the entry points — a standalone or supporting file."
         elif d == 1:
             reason = "Directly used by the entry points above; a core collaborator."
         else:

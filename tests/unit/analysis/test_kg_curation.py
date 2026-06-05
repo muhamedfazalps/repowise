@@ -527,6 +527,32 @@ class TestCuratedTour:
                 assert "Top of the stack" not in step["reason"]
                 assert "mid-stack" not in step["reason"]
 
+    def test_readme_never_visited_twice(self, flow_repo):
+        # The overview retargets to the root README — it must not reappear
+        # as a code stop later in the walk.
+        kg = _curate(flow_repo, enabled=True)
+        readme_steps = [s for s in kg.tour if s["target_path"] == "README.md"]
+        assert len(readme_steps) == 1
+        assert readme_steps[0]["kind"] == "overview"
+
+
+class TestEntryPointFallback:
+    def test_filename_scorers_fill_in_when_nothing_is_flagged(self):
+        # No ingestion entry flags at all: the entry-style filename (main.py)
+        # still surfaces, so the orientation panel never opens empty.
+        repo = build_repo(
+            ["src/cli/main.py", "src/services/svc.py", "tests/test_svc.py"],
+            edges=[("src/cli/main.py", "src/services/svc.py")],
+        )
+        kg = _curate(repo, enabled=True)
+        assert kg.project["entry_points"] == ["src/cli/main.py"]
+
+    def test_fallback_skips_test_files(self):
+        # A test named like an entry must not be surfaced by the fallback.
+        repo = build_repo(["tests/main.py", "src/services/svc.py"])
+        kg = _curate(repo, enabled=True)
+        assert kg.project["entry_points"] == []
+
 
 # ---------------------------------------------------------------------------
 # Phase 4 — node typing & never-empty summaries
