@@ -7,6 +7,9 @@ SPEC = LanguageSpec(
     display_name="Rust",
     import_support="full",
     entry_stems=("mod",),
+    # Cargo conventions: src/bin/ holds extra binaries; workspace binary
+    # crates are conventionally named <project>-cli (typst-cli, …).
+    layer_dir_hints=(("src/bin", "CLI"), ("-cli", "CLI")),
     extensions=frozenset({".rs"}),
     grammar_package="tree_sitter_rust",
     scm_file="rust.scm",

@@ -81,9 +81,14 @@ class LanguageSpec:
     # Stems that anchor the tour's closing test-suite stop (conftest-likes).
     suite_anchor_stems: tuple[str, ...] = ()
 
-    # Extra (dir_token → layer_name) hints this language contributes to
-    # layer inference (e.g. Go: ("cmd", "CLI")). Empty until the parity
-    # switch-over completes; populated per-language in later phases.
+    # Extra (dir_hint → layer_name) hints applied ONLY to this language's
+    # files (rule 12), consulted after the generic layer table at each path
+    # depth. Three hint shapes, distinguished by the key:
+    #   "internal"  — exact lowercase dir-name token (Go internal/ → Service)
+    #   "src/bin"   — multi-segment path, matched as consecutive segments
+    #   ".Api"/"-cli" — case-sensitive dir-name *suffix* (leading "." or "-"):
+    #                 .NET project dirs (Billing.Api/), cargo crate dirs
+    #                 (typst-cli/)
     layer_dir_hints: tuple[tuple[str, str], ...] = ()
 
     # -- Ecosystem -------------------------------------------------------

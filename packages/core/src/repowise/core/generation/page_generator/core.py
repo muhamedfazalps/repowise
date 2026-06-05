@@ -68,7 +68,9 @@ def _attach_file_provenance(page: GeneratedPage, ctx: FilePageContext) -> None:
         # path-based inference.
         from ..layers import infer_layer
 
-        page.metadata["layer_name"] = infer_layer(ctx.file_path)
+        page.metadata["layer_name"] = infer_layer(
+            ctx.file_path, getattr(ctx, "language", None)
+        )
 
     sources: list[dict[str, str]] = []
     seen: set[str] = set()

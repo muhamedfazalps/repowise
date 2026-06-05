@@ -71,9 +71,20 @@ class TestParityGoldens:
         # hard-coded to "conftest"; the consumer flip is Phase 1 work.
         assert REGISTRY.suite_anchor_stems() == frozenset({"conftest"})
 
-    def test_layer_dir_hints_empty_in_phase0(self) -> None:
-        # Per-language layer hints land in Phase 1 with per-repo review.
-        assert REGISTRY.layer_dir_hints() == ()
+    def test_layer_dir_hints_by_language(self) -> None:
+        # Phase 1.2: per-language hints (consulted after the generic table,
+        # only for the declaring language's files). csharp's project-suffix
+        # hints await live verification on a .NET repo in Phase 3.
+        assert REGISTRY.layer_dir_hints_by_language() == {
+            "go": (("internal", "Service"), ("pkg", "Service")),
+            "rust": (("-cli", "CLI"), ("src/bin", "CLI")),
+            "ruby": (("jobs", "Service"),),
+            "csharp": (
+                (".Api", "API"),
+                (".Domain", "Service"),
+                (".Infrastructure", "Data"),
+            ),
+        }
 
     def test_camel_suffix_extension_map(self) -> None:
         # Phase 1.1: case-sensitive camel-boundary test suffixes per language.

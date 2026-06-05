@@ -248,7 +248,10 @@ def _curate_layers(kg: KnowledgeGraphResult, graph_builder: Any) -> list[dict] |
         return None
 
     id_to_path = {n["id"]: n["filePath"] for n in file_nodes}
-    file_layers = {n["filePath"]: infer_layer(n["filePath"]) for n in file_nodes}
+    file_layers = {
+        n["filePath"]: infer_layer(n["filePath"], (n.get("language") or "").lower())
+        for n in file_nodes
+    }
     order = compute_layer_order(file_layers, _file_import_edges(graph_builder))
 
     by_layer: dict[str, list[str]] = defaultdict(list)
@@ -435,7 +438,7 @@ def _curate_tour(
         if lang and type_by_path.get(p) not in {"config", "document"}
     ]
     dominant_lang = Counter(code_langs).most_common(1)[0][0] if code_langs else ""
-    file_layers = {p: infer_layer(p) for p in paths}
+    file_layers = {p: infer_layer(p, lang_by_path.get(p)) for p in paths}
     order = compute_layer_order(file_layers, _file_import_edges(graph_builder))
 
     pagerank = graph_builder.pagerank() or {}
@@ -742,7 +745,7 @@ def _cheap_summary(node: dict, parsed_file: Any | None) -> str:
     parent = PurePosixPath(path).parent.name or "root"
     node_type = node.get("type", "file")
     tags = node.get("tags") or []
-    layer = infer_layer(path)
+    layer = infer_layer(path, (node.get("language") or "").lower())
 
     if "barrel" in tags:
         return f"Re-export barrel for {parent}/."

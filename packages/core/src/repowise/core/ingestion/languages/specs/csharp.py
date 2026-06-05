@@ -9,6 +9,9 @@ SPEC = LanguageSpec(
     # xUnit/NUnit conventions: FooTest(s)/FooSpec(s); sibling Foo.Tests/ projects.
     test_camel_suffixes=("Test", "Tests", "Spec", "Specs"),
     test_dir_suffixes=(".Tests",),
+    # Clean-architecture project-dir suffixes (Foo.Api/, Foo.Domain/,
+    # Foo.Infrastructure/) — to be verified on a live .NET repo in Phase 3.
+    layer_dir_hints=((".Api", "API"), (".Domain", "Service"), (".Infrastructure", "Data")),
     extensions=frozenset({".cs"}),
     grammar_package="tree_sitter_c_sharp",
     scm_file="csharp.scm",

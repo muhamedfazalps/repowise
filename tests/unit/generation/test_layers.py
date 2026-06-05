@@ -152,6 +152,51 @@ def test_infer_layer_dotnet_test_project_dirs():
 
 
 # ---------------------------------------------------------------------------
+# Phase 1.2 — per-language layer-dir hints
+# ---------------------------------------------------------------------------
+
+
+def test_infer_layer_go_internal_pkg_hints():
+    assert infer_layer("internal/auth.go", "go") == "Service"
+    assert infer_layer("pkg/render/render.go", "go") == "Service"
+    # Without the language (or for another language) the hint never fires.
+    assert infer_layer("internal/auth.go") == DEFAULT_LAYER
+    assert infer_layer("internal/auth.py", "python") == DEFAULT_LAYER
+    # A deeper generic hint still wins over the language hint.
+    assert infer_layer("internal/handlers/auth.go", "go") == "API"
+
+
+def test_infer_layer_rust_cli_hints():
+    assert infer_layer("src/bin/extra.rs", "rust") == "CLI"
+    assert infer_layer("crates/typst-cli/src/main.rs", "rust") == "CLI"
+    assert infer_layer("src/bin/extra.rs") == DEFAULT_LAYER
+    # Case-sensitive suffix; an unrelated "Bin" or non-rust file never matches.
+    assert infer_layer("crates/typst-cli/src/main.py", "python") == DEFAULT_LAYER
+    # A dir literally named "-cli" is not the convention (proper suffix only).
+    assert infer_layer("-cli/main.rs", "rust") == DEFAULT_LAYER
+
+
+def test_infer_layer_ruby_rails_jobs():
+    assert infer_layer("app/jobs/cleanup_job.rb", "ruby") == "Service"
+    assert infer_layer("app/jobs/cleanup.py", "python") == DEFAULT_LAYER
+
+
+def test_infer_layer_dotnet_project_suffixes():
+    assert infer_layer("src/Billing.Api/Program.cs", "csharp") == "API"
+    assert infer_layer("Billing.Domain/Invoice.cs", "csharp") == "Service"
+    assert infer_layer("Billing.Infrastructure/Repo.cs", "csharp") == "Data"
+    # Generic deeper dirs still win; lowercase variants are not the convention.
+    assert infer_layer("src/Billing.Api/models/Dto.cs", "csharp") == "Data"
+    assert infer_layer("billing.api/Program.cs", "csharp") == DEFAULT_LAYER
+
+
+def test_infer_layer_test_rules_beat_language_hints():
+    # A camel test inside a hinted dir is still a test.
+    assert infer_layer("internal/AuthTest.java", "java") == "Test"
+    assert infer_layer("pkg/render/render_test.go", "go") == "Test"
+
+
+# ---------------------------------------------------------------------------
 # compute_layer_order — top→bottom by dependency direction
 # ---------------------------------------------------------------------------
 

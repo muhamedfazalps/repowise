@@ -307,10 +307,17 @@ class _GenerationRun:
         # Layer spine: every documented file gets a layer (KG when present,
         # path-based inference otherwise), then layers are ordered top→bottom
         # by inter-layer dependency direction.
+        lang_by_path = {
+            p.file_info.path: (getattr(p.file_info, "language", "") or "").lower()
+            for p in self.parsed_files
+            if getattr(p, "file_info", None)
+        }
         file_layers: dict[str, str] = {}
         for path in self.sel_file_paths:
             kg_fc = self.kg_ctx.get_file_context(path) if self.kg_ctx.available else None
-            file_layers[path] = (kg_fc.layer_name if kg_fc and kg_fc.layer_name else "") or infer_layer(path)
+            file_layers[path] = (kg_fc.layer_name if kg_fc and kg_fc.layer_name else "") or infer_layer(
+                path, lang_by_path.get(path)
+            )
         self.layer_order = compute_layer_order(file_layers, import_edges)
 
     # ------------------------------------------------------------------

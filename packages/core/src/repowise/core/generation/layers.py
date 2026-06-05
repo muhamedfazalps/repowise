@@ -117,6 +117,33 @@ def _is_test_dir_path(segments: list[str], original_segments: list[str]) -> bool
     return any(seg.endswith(_TEST_DIR_SUFFIXES) for seg in original_segments)
 
 
+# Per-language layer hints (rule 12: they fire only for files of the
+# declaring language). Partitioned by hint shape at import time — exact
+# lowercase tokens, multi-segment paths ("src/bin"), and case-sensitive
+# dir-name suffixes (".Api", "-cli"). The generic table above wins at any
+# given depth; a deeper segment beats a shallower one across both tables.
+_LANG_TOKEN_HINTS: dict[str, dict[str, str]] = {}
+_LANG_PATH_HINTS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {}
+_LANG_SUFFIX_HINTS: dict[str, tuple[tuple[str, str], ...]] = {}
+for _tag, _hints in _LANG_REGISTRY.layer_dir_hints_by_language().items():
+    _tokens: dict[str, str] = {}
+    _paths: list[tuple[tuple[str, ...], str]] = []
+    _suffixes: list[tuple[str, str]] = []
+    for _key, _layer in _hints:
+        if "/" in _key:
+            _paths.append((tuple(_key.split("/")), _layer))
+        elif _key.startswith((".", "-")):
+            _suffixes.append((_key, _layer))
+        else:
+            _tokens[_key] = _layer
+    if _tokens:
+        _LANG_TOKEN_HINTS[_tag] = _tokens
+    if _paths:
+        _LANG_PATH_HINTS[_tag] = tuple(_paths)
+    if _suffixes:
+        _LANG_SUFFIX_HINTS[_tag] = tuple(_suffixes)
+
+
 # Example/demo directories: documentation-by-code, not the system itself.
 # Their files carry entry-style names (main.go, index.js) by convention, so
 # without demotion they flood entry points and the tour on any repo that
@@ -152,7 +179,7 @@ _CANONICAL_RANK: dict[str, int] = {
 }
 
 
-def infer_layer(path: str) -> str:
+def infer_layer(path: str, language: str | None = None) -> str:
     """Return the architectural layer name for *path*.
 
     A test-shaped filename wins outright — Go and Jest colocate tests beside
@@ -164,8 +191,12 @@ def infer_layer(path: str) -> str:
     only when the filename itself looks like a test — a ``specs/`` directory
     full of ordinary modules is a specification folder, not a test suite.
     Otherwise scans path segments from the deepest directory outward and
-    returns the first layer whose hint set contains a segment. Falls back to
-    :data:`DEFAULT_LAYER` when nothing matches.
+    returns the first layer whose hint set contains a segment. When
+    *language* is given, that language's registry-declared hints (Go
+    ``internal/``, Rust ``src/bin/``, .NET ``Foo.Api/``…) are consulted at
+    each depth after the generic table — they never fire for other
+    languages' files. Falls back to :data:`DEFAULT_LAYER` when nothing
+    matches.
     """
     original_parts = list(PurePosixPath(path).parts)
     parts = [s.lower() for s in original_parts]
@@ -193,13 +224,34 @@ def infer_layer(path: str) -> str:
     if segments and segments[0].startswith("."):
         return "Config"
 
+    lang = (language or "").lower()
+    token_hints = _LANG_TOKEN_HINTS.get(lang)
+    path_hints = _LANG_PATH_HINTS.get(lang)
+    suffix_hints = _LANG_SUFFIX_HINTS.get(lang)
+    original_segments = original_parts[:-1]
+
     # Deepest directory first — the closest folder describes the file best.
-    for seg in reversed(segments):
+    for i in range(len(segments) - 1, -1, -1):
+        seg = segments[i]
         for layer_name, tokens in _LAYER_HINTS:
             if layer_name == "Test":
                 continue  # handled above
             if seg in tokens:
                 return layer_name
+        if token_hints and seg in token_hints:
+            return token_hints[seg]
+        if path_hints:
+            for needle, layer_name in path_hints:
+                span = len(needle)
+                if span <= i + 1 and tuple(segments[i - span + 1 : i + 1]) == needle:
+                    return layer_name
+        if suffix_hints:
+            orig = original_segments[i]
+            for sfx, layer_name in suffix_hints:
+                # Proper suffix only — a dir literally named ".Api" is not
+                # the convention.
+                if orig.endswith(sfx) and len(orig) > len(sfx):
+                    return layer_name
     return DEFAULT_LAYER
 
 

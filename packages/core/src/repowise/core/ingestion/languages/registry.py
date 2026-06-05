@@ -196,11 +196,17 @@ class LanguageRegistry:
         """Union of case-sensitive test-project dir suffixes, sorted."""
         return tuple(sorted({p for s in self._specs.values() for p in s.test_dir_suffixes}))
 
-    def layer_dir_hints(self) -> tuple[tuple[str, str], ...]:
-        """Union of per-language (dir_token, layer_name) hints, sorted."""
-        return tuple(
-            sorted({h for s in self._specs.values() for h in s.layer_dir_hints})
-        )
+    def layer_dir_hints_by_language(self) -> dict[str, tuple[tuple[str, str], ...]]:
+        """Per-language (dir_hint, layer_name) hints, sorted for determinism.
+
+        Keys are language tags; hints apply only to that language's files
+        (rule 12). See ``LanguageSpec.layer_dir_hints`` for the hint shapes.
+        """
+        return {
+            s.tag: tuple(sorted(s.layer_dir_hints))
+            for s in self._specs.values()
+            if s.layer_dir_hints
+        }
 
     def all_specs(self) -> list[LanguageSpec]:
         """Return all registered specs."""
