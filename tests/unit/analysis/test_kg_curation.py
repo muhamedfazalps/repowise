@@ -1159,3 +1159,44 @@ class TestFanoutCollapse:
         # (the fan-out collapses to one).
         assert rank["tests/test_x.py"] == 2
         assert rank["tests/test_y.py"] == 1
+
+
+class TestPartialTierGraphMode:
+    """Regex-tier (partial) languages run flow/sparse per REAL density and
+    resolution — partial support alone no longer pins sparse."""
+
+    def test_well_resolved_partial_repo_flows(self):
+        # 30 elixir files, thin but cleanly-resolved alias chain → flow:
+        # blaming "incomplete import resolution" at 0.97 resolution is a lie.
+        paths = [f"lib/m{i}.ex" for i in range(30)]
+        edges = [(paths[i], paths[i + 1]) for i in range(29)]
+        edges += [(paths[0], "external:Phoenix")]
+        repo = build_repo(paths, edges=edges)
+        kg = _curate(repo, enabled=True)
+        assert kg.project["graph_mode"] == "flow"
+
+    def test_weakly_resolved_partial_repo_stays_sparse(self):
+        paths = [f"lib/m{i}.ex" for i in range(30)]
+        edges = [(paths[i], paths[i + 1]) for i in range(9)]
+        edges += [(paths[i], f"external:Dep{i}") for i in range(10, 30)]
+        repo = build_repo(paths, edges=edges)
+        kg = _curate(repo, enabled=True)
+        assert kg.project["graph_mode"] == "sparse"
+
+    def test_small_partial_repo_with_clean_resolution_flows(self):
+        # Density is unmeasurable on tiny repos but resolution is not: a
+        # 24-file Elixir repo resolving 0.9 of its aliases must not have
+        # its tour blame "incomplete import resolution" for being small.
+        paths = [f"lib/m{i}.ex" for i in range(8)]
+        edges = [(paths[i], paths[i + 1]) for i in range(7)]
+        repo = build_repo(paths, edges=edges)
+        kg = _curate(repo, enabled=True)
+        assert kg.project["graph_mode"] == "flow"
+
+    def test_small_partial_repo_with_weak_resolution_stays_sparse(self):
+        paths = [f"lib/m{i}.ex" for i in range(8)]
+        edges = [(paths[0], paths[1])]
+        edges += [(paths[i], f"external:Dep{i}") for i in range(2, 8)]
+        repo = build_repo(paths, edges=edges)
+        kg = _curate(repo, enabled=True)
+        assert kg.project["graph_mode"] == "sparse"

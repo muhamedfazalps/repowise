@@ -63,6 +63,7 @@ LanguageTag = Literal[
     "dockerfile",
     "makefile",
     "markdown",
+    "asciidoc",
     "sql",
     "openapi",
     "xaml",

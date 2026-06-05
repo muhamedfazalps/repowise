@@ -167,7 +167,10 @@ def test_build_tour_seedless_repo_reasons_do_not_overclaim():
     )
     for s in stops:
         assert "An entry point" not in s.reason
-        assert "Off the import path" not in s.reason
+        # the offending phrase referenced entry points that don't exist;
+        # evidence-free parked files now say "Off the import paths walked
+        # above" instead, which references only the walk itself
+        assert "from the entry points" not in s.reason
 
 
 def test_build_tour_seedless_anchor_is_a_code_file():
@@ -266,3 +269,97 @@ def test_build_tour_reached_config_keeps_its_slot():
     documented = {"src/index.ts", "src/config.json"}
     stops = build_tour(files, pr, edges, file_page_paths=documented)
     assert "src/config.json" in {s.target_path for s in stops}
+
+
+# ---------------------------------------------------------------------------
+# Wiring-stub entry co-anchor
+# ---------------------------------------------------------------------------
+
+
+def _stub_entry_repo():
+    """An OTP-style library: the only entry is a supervision stub whose
+    forward BFS reaches nothing, while a hub file's imports fan out wide."""
+    paths = {
+        "lib/app/application.ex": True,  # wiring stub — no outgoing imports
+        "lib/encode.ex": False,
+        "lib/codegen.ex": False,
+        "lib/fragment.ex": False,
+        "lib/decoder.ex": False,
+        "lib/helpers.ex": False,
+        "lib/sigil.ex": False,
+        "lib/jason.ex": False,
+    }
+    files = [_PF(_FI(path=p, is_entry_point=e, language="elixir")) for p, e in paths.items()]
+    edges = [
+        ("lib/encode.ex", "lib/codegen.ex"),
+        ("lib/encode.ex", "lib/fragment.ex"),
+        ("lib/encode.ex", "lib/jason.ex"),
+        ("lib/codegen.ex", "lib/decoder.ex"),
+    ]
+    pr = dict.fromkeys(paths, 0.1)
+    return files, pr, edges, set(paths)
+
+
+def test_wiring_stub_entry_gets_a_co_anchor():
+    files, pr, edges, documented = _stub_entry_repo()
+    stops = build_tour(files, pr, edges, file_page_paths=documented)
+    by_path = {s.target_path: s for s in stops}
+    # the entry keeps its step and wording
+    assert "An entry point" in by_path["lib/app/application.ex"].reason
+    # the widest-fanout file co-anchors at depth 0 with anchor wording
+    anchor = by_path["lib/encode.ex"]
+    assert anchor.depth == 0
+    assert "entry point above only wires" in anchor.reason
+    # the walk actually proceeds through the anchor's imports
+    assert by_path["lib/codegen.ex"].depth == 1
+    assert "anchor above" in by_path["lib/codegen.ex"].reason
+    assert by_path["lib/decoder.ex"].depth == 2
+
+
+def test_entry_with_real_reach_gets_no_co_anchor():
+    paths = {
+        "src/main.py": True,
+        "src/a.py": False,
+        "src/b.py": False,
+        "src/c.py": False,
+        "src/hub.py": False,
+        "src/d.py": False,
+        "src/e.py": False,
+        "src/f.py": False,
+    }
+    files = _repo(paths)
+    edges = [
+        ("src/main.py", "src/a.py"),
+        ("src/a.py", "src/b.py"),
+        ("src/b.py", "src/c.py"),
+        # a hub with wide fanout that must NOT displace the real entry walk
+        ("src/hub.py", "src/d.py"),
+        ("src/hub.py", "src/e.py"),
+        ("src/hub.py", "src/f.py"),
+    ]
+    pr = dict.fromkeys(paths, 0.1)
+    stops = build_tour(files, pr, edges, file_page_paths=set(paths))
+    by_path = {s.target_path: s for s in stops}
+    assert "An entry point" in by_path["src/main.py"].reason
+    assert "only wires" not in " ".join(s.reason for s in stops)
+
+
+# ---------------------------------------------------------------------------
+# Manifests never park
+# ---------------------------------------------------------------------------
+
+
+def test_unreached_manifest_never_parks():
+    paths = {
+        "lib/core.ex": False,
+        "lib/util.ex": False,
+        "mix.exs": False,
+        "project.clj": False,
+    }
+    files = [_PF(_FI(path=p, is_entry_point=False, language="elixir")) for p in paths]
+    edges = [("lib/core.ex", "lib/util.ex")]
+    pr = dict.fromkeys(paths, 0.1)
+    stops = build_tour(files, pr, edges, file_page_paths=set(paths))
+    visited = {s.target_path for s in stops}
+    assert "mix.exs" not in visited
+    assert "project.clj" not in visited

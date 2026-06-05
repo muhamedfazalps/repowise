@@ -108,18 +108,26 @@ def _graph_mode(dominant_lang: str, lang_by_path: dict[str, str], graph_builder:
                     internal_targets += 1
     except Exception:  # pragma: no cover - defensive
         return "flow" if support == "full" else "sparse"
+    total = internal_targets + external_targets
+    resolution = (internal_targets / total) if total else 0.0
     if len(dom_files) < _MODE_MIN_FILES:
-        return "flow" if support == "full" else "sparse"
+        # Density is unmeasurable on tiny repos, but resolution is not: a
+        # partial-tier repo whose imports resolve cleanly must not have its
+        # tour blame "incomplete import resolution" just for being small.
+        if support == "full" or (total and resolution >= _FLOW_RESOLUTION_FLOOR):
+            return "flow"
+        return "sparse"
     density = edge_count / len(dom_files)
     if density < _STRUCTURAL_DENSITY_FLOOR:
         return "structural"
-    if support == "partial":
-        return "sparse"
+    # Partial-tier languages run in flow or sparse per their REAL density
+    # and resolution, exactly like full-tier ones: a regex-tier resolver
+    # that resolves 0.95+ of an Elixir repo's aliases must not have its
+    # tour blame "incomplete import resolution" — that would be the lie
+    # this mode exists to prevent, inverted.
     if density < _FLOW_DENSITY_FLOOR:
         # Low density indicts the resolver only when resolution is ALSO
         # weak — a require-light but well-resolved graph narrates honestly.
-        total = internal_targets + external_targets
-        resolution = (internal_targets / total) if total else 0.0
         if resolution < _FLOW_RESOLUTION_FLOOR:
             return "sparse"
     return "flow"
@@ -892,6 +900,10 @@ def _curate_tour(
         for layer in uncovered:
             if not redundant_positions:
                 break
+            # Manifests (mix.exs, project.clj, Setup.lhs) are code-shaped
+            # but describe the project rather than implement it — never a
+            # layer's face, same rule as the structural anchor.
+            manifest_names = _LANG_REGISTRY.manifest_filenames()
             candidates = [
                 p
                 for p in by_layer.get(layer, [])
@@ -899,6 +911,7 @@ def _curate_tour(
                 and p != overview_target
                 and not is_support_path(p)
                 and not PurePosixPath(p).parts[0].startswith(".")  # never a layer face
+                and PurePosixPath(p).name not in manifest_names
             ]
             if not candidates:
                 continue
@@ -906,8 +919,14 @@ def _curate_tour(
             # (a plugins/ dir of JSON manifests) gets no manufactured stop —
             # except Config itself, where "this is where configuration
             # lives" is the point.
+            # Infra-language scripts (run-hlint.sh, deploy.sh) wire the
+            # project, they don't implement a layer — never its face.
+            infra_langs = _LANG_REGISTRY.infra_languages()
             code_candidates = [
-                p for p in candidates if type_by_path.get(p) not in {"config", "document"}
+                p
+                for p in candidates
+                if type_by_path.get(p) not in {"config", "document"}
+                and lang_by_path.get(p) not in infra_langs
             ]
             if not code_candidates and layer != "Config":
                 continue

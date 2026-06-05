@@ -45,6 +45,10 @@ from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTR
 # tests/unit/ingestion/test_language_capabilities.py.
 _ENTRY_FILENAME_STEMS: frozenset[str] = _LANG_REGISTRY.entry_filename_stems()
 
+# A genuine entry whose forward BFS reaches no more than this many files is a
+# wiring stub (supervision/bootstrap); the widest-fanout file then co-anchors.
+_STUB_ENTRY_REACH = 3
+
 # Languages whose files can never be execution entry points, however
 # entry-like their stem is: docs/data/config (``is_code=False`` —
 # docs/index.md is not a program's front door, and neither is
@@ -220,10 +224,12 @@ def build_tour(
     documented = set(file_page_paths)
     infra = set(infra_paths)
     adjacency: dict[str, list[str]] = defaultdict(list)
+    fan_in: dict[str, int] = defaultdict(int)
     for src, dst in import_edges:
         if src.startswith("external:") or dst.startswith("external:"):
             continue
         adjacency[src].append(dst)
+        fan_in[dst] += 1
 
     # Seeds = the genuine entry points (the ``is_entry_point`` flag or an
     # entry-style filename, both worth +3), restricted to documented files. A
@@ -234,35 +240,56 @@ def build_tour(
     # Whether the seeds are genuine entry points (flag/filename evidence) or
     # just the best-available anchor — the step reasons must not overclaim.
     genuine_entries = bool(seeds)
+
+    # Docs, config, and test files can't anchor a walk.
+    ineligible = {
+        p.file_info.path
+        for p in parsed_files
+        if getattr(p, "file_info", None)
+        and (
+            (getattr(p.file_info, "language", "") or "").lower() in _NON_CODE_LANGUAGES
+            or infer_layer(p.file_info.path) in ADJACENT_LAYERS
+            or is_support_path(p.file_info.path)
+        )
+    }
+
+    # Rank by import *relationships* when the caller supplies the
+    # fan-out-collapsed counts (one package import = one relationship),
+    # else raw out-degree.
+    def _fanout(p: str) -> int:
+        if anchor_rank is not None:
+            return anchor_rank.get(p, 0)
+        return len(adjacency.get(p, []))
+
+    def _best_anchor(exclude: set[str]) -> str | None:
+        eligible = sorted(
+            (p for p in documented if p not in ineligible and p not in exclude),
+            key=lambda p: (-_fanout(p), -pagerank.get(p, 0.0), p),
+        )
+        return eligible[0] if eligible else None
+
+    anchor_seeds: set[str] = set()
     if not seeds:
         # No genuine entry point anywhere (flat libraries like requests).
         # Anchor the walk on the eligible code file whose imports fan out the
         # widest — the closest thing to "execution starts here" the import
-        # graph offers. Docs, config, and test files can't anchor a walk.
-        ineligible = {
-            p.file_info.path
-            for p in parsed_files
-            if getattr(p, "file_info", None)
-            and (
-                (getattr(p.file_info, "language", "") or "").lower() in _NON_CODE_LANGUAGES
-                or infer_layer(p.file_info.path) in ADJACENT_LAYERS
-                or is_support_path(p.file_info.path)
-            )
-        }
-        # Rank by import *relationships* when the caller supplies the
-        # fan-out-collapsed counts (one package import = one relationship),
-        # else raw out-degree.
-        def _fanout(p: str) -> int:
-            if anchor_rank is not None:
-                return anchor_rank.get(p, 0)
-            return len(adjacency.get(p, []))
-
-        eligible = sorted(
-            (p for p in documented if p not in ineligible),
-            key=lambda p: (-_fanout(p), -pagerank.get(p, 0.0), p),
-        )
-        seeds = eligible[:1] or [path for _, path in scored if path in documented][:1]
+        # graph offers.
+        best = _best_anchor(set())
+        seeds = [best] if best else [path for _, path in scored if path in documented][:1]
     depths = _bfs_depths(seeds, adjacency, documented)
+
+    # Wiring-stub entries: an OTP application.ex or DI bootstrap starts
+    # supervisors, not the domain logic — its forward BFS dies at depth 1
+    # and every walk slot fills with unreached parking. When the genuine
+    # entries reach almost nothing and a non-seed file's imports fan out
+    # substantially, that file co-anchors the walk (its own steps use
+    # anchor wording, never "entry point").
+    if genuine_entries and len(depths) <= _STUB_ENTRY_REACH and len(documented) > _STUB_ENTRY_REACH * 2:
+        co_anchor = _best_anchor(set(seeds))
+        if co_anchor is not None and _fanout(co_anchor) >= 3:
+            anchor_seeds.add(co_anchor)
+            seeds = [*seeds, co_anchor]
+            depths = _bfs_depths(seeds, adjacency, documented)
 
     # Documented files never reached from a seed still belong in the tour;
     # park them after the deepest reached file, ranked by PageRank. Remember
@@ -278,9 +305,13 @@ def build_tour(
     }
     reached = set(depths)
     max_reached = max(depths.values(), default=-1)
+    # Manifests (mix.exs, project.clj, Setup.lhs) are code-shaped but cannot
+    # be on an import path by design — like documents, an unreached manifest
+    # is expected and never worth a parked tour slot.
+    manifest_names = _LANG_REGISTRY.manifest_filenames()
     for path in documented:
         if path not in depths:
-            if path in non_code_paths:
+            if path in non_code_paths or PurePosixPath(path).name in manifest_names:
                 continue
             depths[path] = max_reached + 1
     documented = {p for p in documented if p in depths}
@@ -324,13 +355,18 @@ def build_tour(
         order += 1
         d = depths[path]
         if d <= 0:
-            reason = (
-                "An entry point — execution and imports fan out from here."
-                if genuine_entries
+            if path in anchor_seeds:
+                reason = (
+                    "The walk's anchor — the entry point above only wires the "
+                    "app together, so the tour follows the file whose imports "
+                    "fan out the widest."
+                )
+            elif genuine_entries:
+                reason = "An entry point — execution and imports fan out from here."
+            else:
                 # State the anchor's actual selection evidence (widest import
                 # fan-out), not a vague "best-connected" that implies fan-in.
-                else "The walk's anchor — its imports fan out the widest in a repo with no single entry point."
-            )
+                reason = "The walk's anchor — its imports fan out the widest in a repo with no single entry point."
         elif path not in reached:
             if graph_mode == "sparse":
                 # The graph, not the file, is the likely cause here.
@@ -343,14 +379,22 @@ def build_tour(
                     "Off the import path from the entry points — a standalone "
                     "or supporting file."
                 )
-            else:
+            elif fan_in.get(path, 0) >= 3:
                 reason = "A widely-imported module — much of the repo depends on it."
+            else:
+                # No fan-in evidence: a generated lookup table parked by
+                # PageRank must not claim the repo depends on it.
+                reason = (
+                    "Off the import paths walked above — a standalone or "
+                    "supporting file."
+                )
         elif d == 1:
             # Anchor-seeded walks have no entry points — the reason must not
-            # invent them.
+            # invent them. When a co-anchor rescued a wiring-stub entry, the
+            # depth-1 files were reached through the anchor, not the entry.
             reason = (
                 "Directly used by the entry points above; a core collaborator."
-                if genuine_entries
+                if genuine_entries and not anchor_seeds
                 else "Directly imported by the anchor above; a core collaborator."
             )
         else:

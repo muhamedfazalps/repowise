@@ -139,7 +139,8 @@ endpoints or targets where applicable.
 | **YAML** | `.yaml` `.yml` | -- |
 | **JSON** | `.json` | -- |
 | **TOML** | `.toml` | -- |
-| **Markdown** | `.md` `.mdx` | -- |
+| **Markdown** | `.md` `.mdx` `.markdown` `.mdown` | -- |
+| **AsciiDoc** | `.adoc` `.asciidoc` | -- |
 | **SQL** | `.sql` | -- |
 | **Shell** | `.sh` `.bash` `.zsh` | -- |
 
@@ -159,14 +160,34 @@ through `.luaurc` `aliases` maps (nearest declaration wins, child overrides
 parent). Repos without a Rojo project file / `.luaurc` keep the conservative
 external-node fallback (issue #52 is closed by both halves).
 
-### Git-Blame-Only
+### Lightweight (regex-tier import graphs)
+
+These languages have no AST parsing (no symbols, calls, or heritage) but
+get a real file-level import graph from a regex tier: import statements
+are extracted with per-language regexes and resolved against a declared
+module-name index (declaration scan + path-convention inverse). The
+knowledge graph runs in flow/sparse mode on the resulting density —
+honest file-to-file dependencies, no symbol-level claims.
+
+| Language | Extensions | Import Forms Resolved |
+|----------|-----------|----------------------|
+| **Elixir** | `.ex` `.exs` | `alias` / `import` / `use` / `require` (incl. `Foo.{Bar, Baz}` brace groups) → `defmodule` index + Mix `lib/` path convention (umbrella `apps/*/lib` included); Elixir/OTP stdlib filtered after local-miss |
+| **Dart** | `.dart` | `import` / `export` (re-export) / `part` / `part of` URIs; `package:` URIs via every `pubspec.yaml` `name:` (monorepos included); `dart:` SDK URIs filtered; foreign packages → `external:pub:<name>` |
+| **Clojure** | `.clj` `.cljc` `.cljs` | `(:require …)` / `(:use …)` vectors and bare specs (string/comment-safe) → `(ns …)` index + classpath convention (dashes ↔ underscores); `clojure.*`/`cljs.*` filtered |
+| **Haskell** | `.hs` `.lhs` | `import [safe] [qualified] ["pkg"] Foo.Bar` → `module` declaration index + trailing-PascalCase path inverse (handles any hs-source-dirs without parsing `.cabal`); base-ish namespaces filtered after local-miss |
+| **Erlang** | `.erl` `.hrl` | `-include` / `-include_lib` / `-behaviour` + module-qualified calls (`mod:fun(`) → `-module()` index; qualified calls are strict local-hit-or-drop (never mint externals) |
+| **F#** | `.fs` `.fsi` `.fsx` | `open` → file-level `namespace`/`module` index (unambiguous single-file declarations only), plus the fsproj `<Compile Include>` compile-order dependency spine (a real F# constraint: files may only reference earlier files) |
+
+### Structural (git + file tree only)
 
 These languages are tracked in git history (blame, hotspot analysis,
-co-change detection) but have no AST parsing or dedicated support. Files
-appear in the wiki as traversal-level entries.
+co-change detection) but have no AST parsing or import resolution. Files
+appear in the wiki as traversal-level entries, and the knowledge graph
+runs in **structural mode** for repos dominated by them: the tour
+orients by directory structure, naming conventions, and git evidence —
+it never claims an execution flow it cannot see.
 
-Objective-C, Elixir, Erlang, R, Dart, Zig, Julia, Clojure, Elm,
-Haskell, OCaml, F#, Crystal, Nim, D
+Objective-C, R, Zig, Julia, Elm, OCaml, Crystal, Nim, D
 
 ---
 
@@ -205,6 +226,8 @@ Extension/filename -> LanguageTag  (via LanguageRegistry)
           Go:     go.mod module path stripping
           Rust:   crate::/self::/super::, mod.rs probing
           C/C++:  compile_commands.json include directories
+          Lightweight tier (Elixir/Dart/Clojure/Haskell/Erlang/F#):
+                  regex-extracted imports vs a declared-module-name index
           Other:  stem-map fallback (filename matching)
                 |
                 v
@@ -482,6 +505,6 @@ relevant `__init__.py` dispatcher / dict.
 
 | Language | Target Tier | Status |
 |----------|------------|--------|
-| Dart | Good | Planned — `tree-sitter-dart` available |
-| Elixir | Good | Planned — `tree-sitter-elixir` available |
-| F# | Good | Planned — `tree-sitter-f-sharp` available |
+| Dart | Good | Lightweight tier shipped; AST upgrade planned — `tree-sitter-dart` available |
+| Elixir | Good | Lightweight tier shipped; AST upgrade planned — `tree-sitter-elixir` available |
+| F# | Good | Lightweight tier shipped; AST upgrade planned — `tree-sitter-f-sharp` available |

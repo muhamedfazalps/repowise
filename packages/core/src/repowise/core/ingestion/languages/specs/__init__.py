@@ -33,6 +33,7 @@ from .julia import SPEC as _JULIA
 from .kotlin import SPEC as _KOTLIN
 from .luau import SPEC as _LUAU
 from .makefile import SPEC as _MAKEFILE
+from .asciidoc import SPEC as _ASCIIDOC
 from .markdown import SPEC as _MARKDOWN
 from .nim import SPEC as _NIM
 from .objectivec import SPEC as _OBJECTIVEC
@@ -94,6 +95,7 @@ ALL_SPECS: tuple[LanguageSpec, ...] = (
     _DOCKERFILE,
     _MAKEFILE,
     _MARKDOWN,
+    _ASCIIDOC,
     _SQL,
     _OPENAPI,
     # XAML / AXAML markup for WPF, WinUI 3, UWP, MAUI, Avalonia, Uno.
