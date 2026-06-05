@@ -549,6 +549,16 @@ class ASTParser:
                                 k -= 1
                             break
 
+            # JVM wildcard imports: the grammar query captures the scoped
+            # identifier only — the trailing ``*`` is a sibling node, so
+            # ``import com.foo.*`` arrives as ``com.foo`` and the resolvers'
+            # package fan-out branch can never fire. Restore it from the
+            # raw statement text.
+            if file_info.language in ("java", "kotlin") and not module_text.endswith("*"):
+                stmt_text = raw.rstrip().rstrip(";").rstrip()
+                if stmt_text.endswith(".*"):
+                    module_text += ".*"
+
             # Language-specific import name + binding extraction
             imported_names, bindings = extract_import_bindings(stmt_node, src, file_info.language)
             is_relative = (

@@ -75,6 +75,12 @@ class LanguageSpec:
     # ``Test.java`` never do (conventions match with their own case).
     test_camel_suffixes: tuple[str, ...] = ()  # ("Test", "Tests", "IT")
 
+    # Case-sensitive camel-boundary suffixes marking test *fixture* files
+    # ("ParameterizedTypeFixtures.java") — support data living in the test
+    # tree. A fixtures file provides data, it doesn't verify behavior, so
+    # it never faces the test suite in the tour.
+    fixture_camel_suffixes: tuple[str, ...] = ()  # ("Fixture", "Fixtures")
+
     # Multi-segment test-root directory paths, lowercase, matched as
     # consecutive path segments at any depth ("src/it/java"). Single-token
     # roots (tests/, __tests__/) stay in the generic layer table.

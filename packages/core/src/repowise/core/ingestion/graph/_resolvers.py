@@ -105,6 +105,44 @@ class ResolveMixin:
                 if callable(done):
                     done(phase)
 
+    def _resolve_jvm_same_package(self, ctx: Any, progress: Any | None = None) -> None:
+        """Emit same-package ``imports`` edges for JVM files.
+
+        JVM languages reference same-package types without an import
+        statement, so cohesive packages otherwise produce zero edges
+        between sibling files. Conservative text-level scan against the
+        JVM workspace index (already built — cached on *ctx* — by the
+        import resolution phase).
+        """
+        from ..languages.jvm_same_package import (
+            collect_jvm_source_texts,
+            resolve_jvm_same_package_refs,
+        )
+        from ..resolvers.jvm_workspace import get_or_build_jvm_index
+
+        has_jvm = any(
+            pf.file_info.language in ("java", "kotlin", "scala")
+            for pf in self._parsed_files.values()
+        )
+        if not has_jvm:
+            return
+
+        phase = "graph.same_package"
+        if progress:
+            progress.on_phase_start(phase, None)
+        try:
+            jvm_index = get_or_build_jvm_index(ctx)
+            texts = collect_jvm_source_texts(self._parsed_files)
+            added = resolve_jvm_same_package_refs(self._graph, jvm_index, texts)
+            log.info("same_package_edges", added=added)
+        except Exception as exc:
+            log.warning("jvm_same_package_failed", error=str(exc))
+        finally:
+            if progress:
+                done = getattr(progress, "on_phase_done", None)
+                if callable(done):
+                    done(phase)
+
     def _resolve_go_interface_satisfaction(self, progress: Any | None = None) -> None:
         """Emit ``method_implements`` edges for Go structural interface
         satisfaction.

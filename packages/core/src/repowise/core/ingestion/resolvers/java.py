@@ -17,7 +17,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 
 from .jvm_gradle import resolve_via_jvm_gradle_index
-from .jvm_workspace import get_or_build_jvm_index
+from .jvm_workspace import classify_jvm_import, get_or_build_jvm_index
 
 if TYPE_CHECKING:
     from .context import ResolverContext
@@ -49,8 +49,9 @@ def resolve_java_import_all(
 
     jvm_index = get_or_build_jvm_index(ctx)
 
-    # Filter java.lang.* builtins
-    if jvm_index.is_java_lang(module_path):
+    # Filter JDK namespaces (java./javax./jdk.) and bare java.lang types
+    namespace_class = classify_jvm_import(module_path)
+    if namespace_class == "stdlib" or jvm_index.is_java_lang(module_path):
         return ()
 
     parts = module_path.split(".")
@@ -80,6 +81,12 @@ def resolve_java_import_all(
     gradle_match = resolve_via_jvm_gradle_index(module_path, ctx)
     if gradle_match is not None:
         return (gradle_match,)
+
+    # Known-external namespaces (e.g. jakarta.) — exact lookups above get
+    # first refusal (the repo may BE that library), but the fuzzy stem /
+    # directory fallbacks below must not false-match a local file.
+    if namespace_class == "external":
+        return (ctx.add_external_node(module_path),)
 
     # Try stem lookup (class name)
     local = parts[-1]

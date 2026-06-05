@@ -113,6 +113,7 @@ def compute_stats(kg: dict, import_support: dict[str, str] | None = None) -> dic
                 "import_edges": 0,
                 "internal_targets": 0,
                 "external_targets": 0,
+                "hint_edges": {},
                 "files_with_edges": set(),
             },
         )
@@ -129,6 +130,11 @@ def compute_stats(kg: dict, import_support: dict[str, str] | None = None) -> dic
         if bucket is None:
             continue
         bucket["import_edges"] += 1
+        # Convention-pass edges (e.g. hint="same_package") counted separately
+        # so declared-import density and synthesised density are diffable.
+        hint = e.get("hint")
+        if hint:
+            bucket["hint_edges"][hint] = bucket["hint_edges"].get(hint, 0) + 1
         if dst.startswith("file:external:"):
             bucket["external_targets"] += 1
         else:
@@ -153,6 +159,8 @@ def compute_stats(kg: dict, import_support: dict[str, str] | None = None) -> dic
             else 0.0,
             "import_support": support.get(lang, "none"),
         }
+        if b["hint_edges"]:
+            out[lang]["hint_edges"] = dict(sorted(b["hint_edges"].items()))
 
     dominant = max(out, key=lambda k: out[k]["files"], default=None)
     return {"by_language": out, "dominant_language": dominant}

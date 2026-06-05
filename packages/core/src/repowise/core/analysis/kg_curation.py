@@ -48,6 +48,9 @@ from repowise.core.ingestion.languages.registry import REGISTRY as _LANG_REGISTR
 # declaration descriptors (module-info.java) — both registry-declared.
 _SUITE_ANCHOR_STEMS: frozenset[str] = _LANG_REGISTRY.suite_anchor_stems()
 _DESCRIPTOR_FILENAMES: frozenset[str] = _LANG_REGISTRY.descriptor_filenames()
+# Test-fixture filename shapes (FooFixtures.java) — case-sensitive,
+# per-extension; fixture files hold test data, they never face the suite.
+_FIXTURE_CAMEL_RES = _LANG_REGISTRY.camel_fixture_res_by_extension()
 
 # Honest-degradation thresholds. Density = (imports + tested_by)
 # edges per dominant-language file — the same definition the validation
@@ -58,6 +61,13 @@ _DESCRIPTOR_FILENAMES: frozenset[str] = _LANG_REGISTRY.descriptor_filenames()
 _FLOW_DENSITY_FLOOR = 2.0
 _STRUCTURAL_DENSITY_FLOOR = 0.3
 _MODE_MIN_FILES = 25
+
+
+def _is_fixture_shaped(path: str) -> bool:
+    """True when the filename matches its language's fixture convention."""
+    pp = PurePosixPath(path)
+    fixture_re = _FIXTURE_CAMEL_RES.get(pp.suffix.lower())
+    return fixture_re is not None and fixture_re.search(pp.stem) is not None
 
 
 def _graph_mode(dominant_lang: str, lang_by_path: dict[str, str], graph_builder: Any) -> str:
@@ -677,6 +687,9 @@ def _curate_tour(
             # that describe a module, not tests — gson's shallow JPMS
             # descriptor must never face the suite.
             and PurePosixPath(p).name not in _DESCRIPTOR_FILENAMES
+            # Fixture-shaped files (FooFixtures.java) hold test data; the
+            # suite's face must be something that verifies behavior.
+            and not _is_fixture_shaped(p)
         ]
         if code_cands:
             # No suite anchor (non-pytest/rspec suites): prefer the repo's

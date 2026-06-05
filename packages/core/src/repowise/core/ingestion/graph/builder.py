@@ -375,6 +375,12 @@ class GraphBuilder(MetricsMixin, ResolveMixin, EdgesMixin, SerializeMixin, Rehyd
         # unused_export false positives (audit #23).
         self._resolve_member_reads(progress=progress)
 
+        # --- JVM same-package implicit references ---
+        # Java/Kotlin (and Scala) reference same-package types without an
+        # import statement; emit conservative sibling edges so cohesive
+        # packages don't read as disconnected files.
+        self._resolve_jvm_same_package(ctx, progress=progress)
+
         # --- Phase 2: Resolve heritage (extends/implements) ---
         self._resolve_heritage(import_targets, progress=progress)
 

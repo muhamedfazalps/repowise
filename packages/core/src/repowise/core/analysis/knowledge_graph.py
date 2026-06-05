@@ -284,13 +284,22 @@ def build_knowledge_graph_skeleton(
             continue
         seen_edges.add(edge_key)
 
-        edges.append({
+        edge_dict = {
             "source": source_id,
             "target": target_id,
             "type": kg_type,
             "direction": "forward",
             "weight": data.get("confidence", 1.0),
-        })
+        }
+        # Additive provenance marker: edges synthesised from convention
+        # passes (e.g. JVM same-package references) carry their origin so
+        # density metrics can separate them from declared imports and any
+        # false positive is diagnosable at the source. Key absent for
+        # regular declared-import edges.
+        hint = data.get("hint_source")
+        if hint:
+            edge_dict["hint"] = hint
+        edges.append(edge_dict)
 
     # ---- Layers (from communities) ---------------------------------------
     layers_by_id: dict[str, dict] = {}

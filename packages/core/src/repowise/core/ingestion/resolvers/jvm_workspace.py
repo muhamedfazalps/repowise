@@ -29,12 +29,47 @@ if TYPE_CHECKING:
 log = structlog.get_logger(__name__)
 
 _PACKAGE_RE = re.compile(r"^\s*package\s+([\w.]+)", re.MULTILINE)
+# Compound kinds (``enum class`` / ``annotation class`` — Kotlin) must come
+# before their single-keyword prefixes in the alternation, otherwise the
+# bare ``enum`` / ``annotation`` branch matches first and captures the
+# literal word "class" as the type name.
 _TOP_LEVEL_TYPE_RE = re.compile(
-    r"^\s*(?:public\s+|private\s+|protected\s+|internal\s+|abstract\s+|final\s+|sealed\s+|open\s+|data\s+)*"
-    r"(?:class|interface|enum|object|record|annotation)\s+(\w+)",
+    r"^\s*(?:public\s+|private\s+|protected\s+|internal\s+|abstract\s+|final\s+"
+    r"|sealed\s+|open\s+|data\s+|value\s+|inline\s+)*"
+    r"(?:annotation\s+class|enum\s+class|class|interface|enum|object|record|annotation)\s+(\w+)",
     re.MULTILINE,
 )
 _JVM_EXTENSIONS = frozenset({".java", ".kt"})
+
+# JDK / Kotlin-stdlib namespaces never resolve to repo files and produce
+# no node at all. Each prefix carries its trailing dot so matching stays
+# segment-aware (``javautil.Foo`` must not match ``java.``).
+_JAVA_STDLIB_PREFIXES = ("java.", "javax.", "jdk.")
+_KOTLIN_STDLIB_PREFIXES = ("kotlin.",)
+
+# Well-known external library namespaces: a real dependency (an external
+# node is wanted), but short-circuited before the stem/directory fallbacks
+# so e.g. ``jakarta.servlet.Filter`` can never false-match a repo-local
+# ``Filter.java``. Unlike stdlib these only apply AFTER exact workspace
+# lookup fails — a repo can legitimately contain these namespaces (the
+# library's own source tree).
+_JAVA_EXTERNAL_PREFIXES = ("jakarta.",)
+_KOTLIN_EXTERNAL_PREFIXES = ("kotlinx.",)
+
+
+def classify_jvm_import(module_path: str, *, kotlin: bool = False) -> str | None:
+    """Classify an import path as ``"stdlib"`` (drop — no node),
+    ``"external"`` (external node, skip fuzzy local fallbacks), or
+    ``None`` (may be repo-local)."""
+    if module_path.startswith(_JAVA_STDLIB_PREFIXES):
+        return "stdlib"
+    if kotlin and module_path.startswith(_KOTLIN_STDLIB_PREFIXES):
+        return "stdlib"
+    if module_path.startswith(_JAVA_EXTERNAL_PREFIXES):
+        return "external"
+    if kotlin and module_path.startswith(_KOTLIN_EXTERNAL_PREFIXES):
+        return "external"
+    return None
 
 # Standard-library packages that should never produce import edges
 _JAVA_LANG_PACKAGES = frozenset({

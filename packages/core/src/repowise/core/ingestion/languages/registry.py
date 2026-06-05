@@ -221,6 +221,25 @@ class LanguageRegistry:
                 result.setdefault(ext, pattern)
         return result
 
+    def camel_fixture_res_by_extension(self) -> dict[str, re.Pattern[str]]:
+        """Per-extension case-sensitive camel-boundary fixture-suffix regexes.
+
+        Same compilation rules as :meth:`camel_test_res_by_extension`, for
+        ``fixture_camel_suffixes`` — files holding test support data
+        (``FooFixtures.java``) rather than tests.
+        """
+        result: dict[str, re.Pattern[str]] = {}
+        for spec in self._specs.values():
+            if not spec.fixture_camel_suffixes:
+                continue
+            alternation = "|".join(
+                sorted(spec.fixture_camel_suffixes, key=lambda sfx: (-len(sfx), sfx))
+            )
+            pattern = re.compile(rf"(?<=[a-z0-9])(?:{alternation})$")
+            for ext in spec.extensions:
+                result.setdefault(ext, pattern)
+        return result
+
     def test_dir_paths(self) -> tuple[str, ...]:
         """Union of multi-segment test-root dir paths, sorted for determinism."""
         return tuple(sorted({p for s in self._specs.values() for p in s.test_dir_paths}))

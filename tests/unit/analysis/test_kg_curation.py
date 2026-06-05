@@ -778,6 +778,47 @@ class TestClosingStopParity:
         assert len(closing) == 1
         assert closing[0]["target_path"] == "src/test/java/com/x/core/AppTest.java"
 
+    def test_fixture_file_never_faces_the_suite(self):
+        # gson regression: same-package edges gave the test tree's
+        # ParameterizedTypeFixtures.java the highest pagerank — but a
+        # fixtures file holds test data, it doesn't verify behavior.
+        repo = build_repo(
+            [
+                "src/main/java/com/x/App.java",
+                "src/main/java/com/x/Core.java",
+                "src/test/java/com/x/TypeFixtures.java",
+                "src/test/java/com/x/CoreTest.java",
+            ],
+            entries={"src/main/java/com/x/App.java"},
+            edges=[
+                ("src/main/java/com/x/App.java", "src/main/java/com/x/Core.java"),
+                # Tests lean on the fixture file — its rank dwarfs the test's.
+                ("src/test/java/com/x/CoreTest.java", "src/test/java/com/x/TypeFixtures.java"),
+            ],
+            pagerank={"src/test/java/com/x/TypeFixtures.java": 0.9},
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "src/test/java/com/x/CoreTest.java"
+
+    def test_fixture_convention_does_not_leak_to_other_languages(self):
+        # The Fixture/Fixtures camel rule is declared by java — a python
+        # file with the same shape stays an eligible suite face.
+        repo = build_repo(
+            [
+                "src/app.py",
+                "src/core.py",
+                "tests/DataFixtures.py",
+            ],
+            entries={"src/app.py"},
+            edges=[("src/app.py", "src/core.py")],
+        )
+        kg = _curate(repo, enabled=True)
+        closing = _closing_stops(kg)
+        assert len(closing) == 1
+        assert closing[0]["target_path"] == "tests/DataFixtures.py"
+
     def test_ruby_suite_anchor_wins(self):
         repo = build_repo(
             [
