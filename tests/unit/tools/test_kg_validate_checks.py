@@ -126,14 +126,23 @@ class TestSmells:
         assert short and short[0].severity == "WARN"
 
     def test_edgeless_graph_fails_for_full_support(self) -> None:
-        kg = _kg(files=[("a.go", "go"), ("b.go", "go")], tour=self._clean_tour())
+        kg = _kg(files=[(f"f{i}.go", "go") for i in range(10)], tour=self._clean_tour())
         codes = {s.code for s in run_smells(kg, compute_stats(kg, SUPPORT))}
         assert "edgeless_graph" in codes
 
     def test_edgeless_graph_ok_for_none_support(self) -> None:
-        kg = _kg(files=[("a.ex", "elixir"), ("b.ex", "elixir")], tour=self._clean_tour())
+        kg = _kg(
+            files=[(f"f{i}.ex", "elixir") for i in range(10)], tour=self._clean_tour()
+        )
         codes = {s.code for s in run_smells(kg, compute_stats(kg, SUPPORT))}
         assert "edgeless_graph" not in codes
+
+    def test_tier_gates_exempt_small_repos(self) -> None:
+        # 2 files, no imports between them: edgeless/floor/ceiling must all
+        # stay quiet — a tiny repo without internal imports is normal.
+        kg = _kg(files=[("a.go", "go"), ("b.go", "go")], tour=self._clean_tour())
+        codes = {s.code for s in run_smells(kg, compute_stats(kg, SUPPORT))}
+        assert not codes & {"edgeless_graph", "density_floor", "orphan_ceiling"}
 
     def test_density_regression_against_baseline(self) -> None:
         kg = _kg(
@@ -186,16 +195,6 @@ class TestSmells:
         smells = run_smells(kg, compute_stats(kg, SUPPORT))
         floor = [s for s in smells if s.code == "density_floor"]
         assert floor and floor[0].severity == "FAIL"
-
-    def test_density_floor_exempts_small_repos(self) -> None:
-        # 3 files < SMALL_REPO_FILES: density is noise, floor must not fire.
-        kg = _kg(
-            files=[("a.go", "go"), ("b.go", "go"), ("c.go", "go")],
-            imports=[("a.go", "b.go")],
-            tour=self._clean_tour(),
-        )
-        codes = {s.code for s in run_smells(kg, compute_stats(kg, SUPPORT))}
-        assert "density_floor" not in codes
 
     def test_orphan_ceiling_fails_above_tier_ceiling(self) -> None:
         # 10 files, 4 orphans = 0.4 > the full-tier ceiling of 0.30.

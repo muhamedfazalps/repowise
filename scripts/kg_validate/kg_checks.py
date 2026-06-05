@@ -30,9 +30,12 @@ from pathlib import PurePosixPath
 #   full    0.9  — matrix minimum 1.31 (sinatra, post-stdlib-filter honest)
 #   partial 0.8  — matrix minimum 1.17 (jason) among repos at/above the
 #                  small-repo cutoff
-# Repos with fewer than SMALL_REPO_FILES dominant-language files are exempt:
-# a 3-file repo's density is noise, not evidence (roblox-lua-promise 0.67).
-# Same rationale as the curation graph-mode small-repo skip.
+# Repos with fewer than SMALL_REPO_FILES dominant-language files are exempt
+# from all three tier gates (edgeless, floor, ceiling): a 3-file repo's
+# density is noise, not evidence (roblox-lua-promise 0.67), and a 2-file
+# repo with no imports between its files is normal. Same rationale as the
+# curation graph-mode small-repo skip; tiny-repo honesty is still covered
+# by the degradation_honesty and tour smells.
 DENSITY_FLOORS = {"full": 0.9, "partial": 0.8}
 SMALL_REPO_FILES = 10
 # Orphan-ratio ceilings (FAIL): dominant language only.
@@ -40,8 +43,8 @@ SMALL_REPO_FILES = 10
 #   partial 0.35 — matrix maximum 0.25 (plug/jason: elixir fully-qualified
 #                  module references need no alias — recorded residual)
 ORPHAN_CEILINGS = {"full": 0.30, "partial": 0.35}
-# A floor for "graph claims support but is effectively edgeless" — kept
-# below the tier floors so it still guards small-repo-exempt dominants.
+# "Graph claims support but is effectively edgeless" — far below the tier
+# floors; kept for the message's specificity on totally broken graphs.
 EDGELESS_FLOOR = 0.05
 DENSITY_REGRESSION_TOLERANCE = 0.15  # >15% drop vs baseline fails; conscious
 # baseline updates are the escape hatch — that friction is the feature.
@@ -247,7 +250,15 @@ def run_smells(
     dominant = stats.get("dominant_language")
     dom = by_lang.get(dominant, {}) if dominant else {}
 
-    if dom and dom.get("import_support") in ("full", "partial"):
+    # All three dominant-tier gates exempt repos under SMALL_REPO_FILES
+    # dominant-language files: a 2-file repo with no imports between its
+    # files is normal, not broken — tiny-repo honesty is covered by the
+    # degradation_honesty and tour smells instead.
+    if (
+        dom
+        and dom.get("import_support") in ("full", "partial")
+        and dom.get("files", 0) >= SMALL_REPO_FILES
+    ):
         if dom.get("edges_per_file", 0.0) < EDGELESS_FLOOR:
             smells.append(
                 Smell(
@@ -258,7 +269,7 @@ def run_smells(
                 )
             )
         floor = DENSITY_FLOORS[dom["import_support"]]
-        if dom.get("files", 0) >= SMALL_REPO_FILES and dom.get("edges_per_file", 0.0) < floor:
+        if dom.get("edges_per_file", 0.0) < floor:
             smells.append(
                 Smell(
                     "FAIL",
