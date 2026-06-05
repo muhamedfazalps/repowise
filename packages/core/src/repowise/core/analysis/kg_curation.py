@@ -24,13 +24,18 @@ from __future__ import annotations
 
 import logging
 import os
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any
 
 from repowise.core.analysis.knowledge_graph import KnowledgeGraphResult, _slugify
-from repowise.core.generation.layers import ADJACENT_LAYERS, compute_layer_order, infer_layer
+from repowise.core.generation.layers import (
+    ADJACENT_LAYERS,
+    compute_layer_order,
+    infer_layer,
+    is_example_path,
+)
 from repowise.core.generation.tour import (
     DEFAULT_MAX_STOPS,
     build_tour,
@@ -339,9 +344,10 @@ def _curate_entry_points(
         if "entry_point" not in tags:
             continue
         path = node.get("filePath", "")
-        if infer_layer(path) in ADJACENT_LAYERS:
-            # Test fixtures (a wsgi.py inside tests/) may carry the ingestion
-            # flag, but they are not where a reader enters the system.
+        if infer_layer(path) in ADJACENT_LAYERS or is_example_path(path):
+            # Test fixtures (a wsgi.py inside tests/) and sample programs
+            # (examples/*/main.go) may carry the ingestion flag, but they are
+            # not where a reader enters the system.
             continue
         pf = pf_by_path.get(path)
         if pf is not None and _is_barrel(pf):
@@ -360,7 +366,7 @@ def _curate_entry_points(
         for s, path in score_entry_points(parsed_files, pagerank):
             if s < 3.0:
                 continue
-            if infer_layer(path) in ADJACENT_LAYERS:
+            if infer_layer(path) in ADJACENT_LAYERS or is_example_path(path):
                 continue
             pf = pf_by_path.get(path)
             if pf is not None and _is_barrel(pf):
@@ -422,6 +428,13 @@ def _curate_tour(
 
     paths = [n["filePath"] for n in file_nodes]
     type_by_path = {n["filePath"]: n.get("type", "file") for n in file_nodes}
+    lang_by_path = {n["filePath"]: (n.get("language") or "").lower() for n in file_nodes}
+    code_langs = [
+        lang
+        for p, lang in lang_by_path.items()
+        if lang and type_by_path.get(p) not in {"config", "document"}
+    ]
+    dominant_lang = Counter(code_langs).most_common(1)[0][0] if code_langs else ""
     file_layers = {p: infer_layer(p) for p in paths}
     order = compute_layer_order(file_layers, _file_import_edges(graph_builder))
 
@@ -479,10 +492,17 @@ def _curate_tour(
             continue
         code_cands = [p for p in cands if type_by_path.get(p) not in {"config", "document"}]
         if code_cands:
-            # No conftest (non-pytest suites): the shallowest test-root file
-            # (django's tests/runtests.py), most-imported as the tie-break.
+            # No conftest (non-pytest suites): prefer the repo's dominant
+            # language (gson's suite face is a .java, not a stray .proto),
+            # then the shallowest test-root file (django's tests/runtests.py),
+            # most-imported as the tie-break.
             code_cands.sort(
-                key=lambda p: (len(PurePosixPath(p).parts), -pagerank.get(p, 0.0), p)
+                key=lambda p: (
+                    lang_by_path.get(p, "") != dominant_lang,
+                    len(PurePosixPath(p).parts),
+                    -pagerank.get(p, 0.0),
+                    p,
+                )
             )
             closing_paths.append(code_cands[0])
         else:
@@ -522,12 +542,20 @@ def _curate_tour(
             continue
         # A layer's face must be code. A layer holding only configs/docs (a
         # plugins/ dir of JSON manifests) gets no manufactured stop — except
-        # Config itself, where "this is where configuration lives" is the point.
+        # Config itself, where "this is where configuration lives" is the
+        # point. Even there, dot-dir tooling (dependabot.yml, FUNDING.yml)
+        # can't be the face; skip rather than showcase noise.
         code_candidates = [
             p for p in candidates if type_by_path.get(p) not in {"config", "document"}
         ]
-        if not code_candidates and layer != "Config":
-            continue
+        if not code_candidates:
+            if layer != "Config":
+                continue
+            candidates = [
+                p for p in candidates if not PurePosixPath(p).parts[0].startswith(".")
+            ]
+            if not candidates:
+                continue
         rep = _best_in_layer(code_candidates or candidates, rank, pagerank)
         pos = redundant_positions.pop()
         replaced = base_code.get(walk[pos])

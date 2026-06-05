@@ -59,10 +59,12 @@ ADJACENT_LAYERS: frozenset[str] = frozenset({"Test"})
 # outward to the next matching segment.
 _AMBIGUOUS_TEST_DIR_TOKENS: frozenset[str] = frozenset({"spec", "specs"})
 
-# Filename shapes that mark a test on their own (pytest, Go, Jest/Vitest, …).
+# Filename shapes that mark a test on their own (pytest, Go, Jest/Vitest,
+# RSpec/minitest fixtures, …).
 _TEST_FILE_STEM_PREFIXES = ("test_",)
 _TEST_FILE_STEM_SUFFIXES = ("_test", "_spec")
 _TEST_FILE_INFIXES = (".test.", ".spec.")
+_TEST_FIXTURE_STEMS = frozenset({"conftest", "spec_helper", "test_helper"})
 
 
 def _is_test_file_name(filename: str) -> bool:
@@ -70,11 +72,25 @@ def _is_test_file_name(filename: str) -> bool:
     name = filename.lower()
     stem = PurePosixPath(name).stem
     return (
-        stem == "conftest"
+        stem in _TEST_FIXTURE_STEMS
         or stem.startswith(_TEST_FILE_STEM_PREFIXES)
         or stem.endswith(_TEST_FILE_STEM_SUFFIXES)
         or any(m in name for m in _TEST_FILE_INFIXES)
     )
+
+
+# Example/demo directories: documentation-by-code, not the system itself.
+# Their files carry entry-style names (main.go, index.js) by convention, so
+# without demotion they flood entry points and the tour on any repo that
+# ships samples (express, chi, …).
+_EXAMPLE_DIR_TOKENS = frozenset(
+    {"examples", "_examples", "example", "samples", "sample", "demo", "demos"}
+)
+
+
+def is_example_path(path: str) -> bool:
+    """Whether *path* sits under an examples/samples/demo directory."""
+    return any(s.lower() in _EXAMPLE_DIR_TOKENS for s in PurePosixPath(path).parts[:-1])
 
 # Fallback layer for files whose path matches no hint (root scripts, etc.).
 DEFAULT_LAYER = "Application"
@@ -101,18 +117,24 @@ _CANONICAL_RANK: dict[str, int] = {
 def infer_layer(path: str) -> str:
     """Return the architectural layer name for *path*.
 
-    A test root anywhere on the path wins first: ``tests/models/x.py`` is a
-    test fixture, not Data, so unambiguous test dirs (``tests``/``__tests__``/
-    …) mark the file from any depth. Ambiguous test-dir tokens
-    (``spec``/``specs``) count only when the filename itself looks like a test
-    — a ``specs/`` directory full of ordinary modules is a specification
-    folder, not a test suite. Otherwise scans path segments from the deepest
-    directory outward and returns the first layer whose hint set contains a
-    segment. Falls back to :data:`DEFAULT_LAYER` when nothing matches.
+    A test-shaped filename wins outright — Go and Jest colocate tests beside
+    sources (``mux_test.go``, ``Button.test.tsx``), so without this check
+    repos with no ``tests/`` dir get no Test layer at all. A test root
+    anywhere on the path wins next: ``tests/models/x.py`` is a test fixture,
+    not Data, so unambiguous test dirs (``tests``/``__tests__``/…) mark the
+    file from any depth. Ambiguous test-dir tokens (``spec``/``specs``) count
+    only when the filename itself looks like a test — a ``specs/`` directory
+    full of ordinary modules is a specification folder, not a test suite.
+    Otherwise scans path segments from the deepest directory outward and
+    returns the first layer whose hint set contains a segment. Falls back to
+    :data:`DEFAULT_LAYER` when nothing matches.
     """
     parts = [s.lower() for s in PurePosixPath(path).parts]
     filename = parts[-1] if parts else ""
     segments = parts[:-1]  # drop filename
+
+    if _is_test_file_name(filename):
+        return "Test"
 
     for seg in segments:
         if seg not in _TEST_DIR_TOKENS:

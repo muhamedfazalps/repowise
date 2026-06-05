@@ -132,6 +132,19 @@ def test_build_tour_unreached_files_get_honest_reasons():
     assert "Directly used" in by_path["a.py"].reason  # reached ones unchanged
 
 
+def test_score_entry_points_withholds_entry_bonuses_from_examples():
+    # examples/*/main.go are entries by *name* only — the library itself
+    # must outrank them.
+    files = [
+        _PF(_FI(path="_examples/hello-world/main.go", is_entry_point=True)),
+        _PF(_FI(path="cmd/app/main.go", is_entry_point=True)),
+    ]
+    pr = {"_examples/hello-world/main.go": 0.9, "cmd/app/main.go": 0.5}
+    scored = {p: s for s, p in score_entry_points(files, pr)}
+    assert scored["cmd/app/main.go"] >= 3.0
+    assert scored.get("_examples/hello-world/main.go", 0.0) < 3.0
+
+
 def test_score_entry_points_withholds_entry_bonuses_from_test_files():
     # tests/testserver/server.py has an entry-style stem, but a test fixture
     # must never seed the onboarding walk.

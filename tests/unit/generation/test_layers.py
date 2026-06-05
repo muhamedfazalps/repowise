@@ -59,6 +59,22 @@ def test_infer_layer_unambiguous_test_dirs_take_any_file():
     assert infer_layer("src/__tests__/render.tsx") == "Test"
 
 
+def test_infer_layer_colocated_test_files_are_test():
+    # Go and Jest colocate tests beside sources — the filename is the signal.
+    assert infer_layer("middleware/compress_test.go") == "Test"
+    assert infer_layer("src/components/Button.test.tsx") == "Test"
+    assert infer_layer("rack-protection/spec/spec_helper.rb") == "Test"
+
+
+def test_is_example_path_matches_demo_dirs():
+    from repowise.core.generation.layers import is_example_path
+
+    assert is_example_path("examples/auth/index.js")
+    assert is_example_path("_examples/hello-world/main.go")
+    assert not is_example_path("src/app/main.go")
+    assert not is_example_path("example.py")  # a file, not a dir
+
+
 def test_infer_layer_root_dot_dirs_are_tooling_config():
     # .agents/plugins/* must not mint a phantom Middleware layer.
     assert infer_layer(".agents/plugins/marketplace.json") == "Config"
