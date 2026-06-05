@@ -121,6 +121,12 @@ def infer_layer(path: str) -> str:
             continue  # "spec(s)/" without a test-shaped file: not a test root
         return "Test"
 
+    # Repo-root dot-directories (.github, .agents, .claude, .vscode, …) hold
+    # tooling, not architecture — their inner dir names (e.g. "plugins") must
+    # not mint phantom runtime layers.
+    if segments and segments[0].startswith("."):
+        return "Config"
+
     # Deepest directory first — the closest folder describes the file best.
     for seg in reversed(segments):
         for layer_name, tokens in _LAYER_HINTS:

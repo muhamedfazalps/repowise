@@ -59,6 +59,13 @@ def test_infer_layer_unambiguous_test_dirs_take_any_file():
     assert infer_layer("src/__tests__/render.tsx") == "Test"
 
 
+def test_infer_layer_root_dot_dirs_are_tooling_config():
+    # .agents/plugins/* must not mint a phantom Middleware layer.
+    assert infer_layer(".agents/plugins/marketplace.json") == "Config"
+    assert infer_layer(".github/workflows/ci.yml") == "Config"
+    assert infer_layer(".claude/CLAUDE.md") == "Config"
+
+
 def test_infer_layer_test_root_beats_deeper_hints():
     # A fixture under tests/models/ is a test, not Data — the test root wins
     # over any deeper directory hint.
