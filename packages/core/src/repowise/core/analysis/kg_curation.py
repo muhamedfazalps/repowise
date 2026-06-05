@@ -555,26 +555,21 @@ def _curate_tour(
         candidates = [
             p
             for p in by_layer.get(layer, [])
-            if p not in walk and p != overview_target and not is_example_path(p)
+            if p not in walk
+            and p != overview_target
+            and not is_example_path(p)
+            and not PurePosixPath(p).parts[0].startswith(".")  # never a layer face
         ]
         if not candidates:
             continue
         # A layer's face must be code. A layer holding only configs/docs (a
         # plugins/ dir of JSON manifests) gets no manufactured stop — except
-        # Config itself, where "this is where configuration lives" is the
-        # point. Even there, dot-dir tooling (dependabot.yml, FUNDING.yml)
-        # can't be the face; skip rather than showcase noise.
+        # Config itself, where "this is where configuration lives" is the point.
         code_candidates = [
             p for p in candidates if type_by_path.get(p) not in {"config", "document"}
         ]
-        if not code_candidates:
-            if layer != "Config":
-                continue
-            candidates = [
-                p for p in candidates if not PurePosixPath(p).parts[0].startswith(".")
-            ]
-            if not candidates:
-                continue
+        if not code_candidates and layer != "Config":
+            continue
         rep = _best_in_layer(code_candidates or candidates, rank, pagerank)
         pos = redundant_positions.pop()
         replaced = base_code.get(walk[pos])
