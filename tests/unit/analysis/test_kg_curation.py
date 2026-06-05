@@ -242,16 +242,18 @@ def large_repo():
 
 
 class TestCurationFlag:
-    def test_default_off(self, monkeypatch):
+    def test_default_on(self, monkeypatch):
+        # Flipped at the cross-language acceptance gate: the 38-repo matrix
+        # is the evidence; the env var is an opt-out now.
         monkeypatch.delenv("REPOWISE_KG_CURATION", raising=False)
-        assert curation_enabled() is False
+        assert curation_enabled() is True
 
     @pytest.mark.parametrize("val", ["1", "true", "TRUE", "yes", "on"])
     def test_truthy_values_enable(self, monkeypatch, val):
         monkeypatch.setenv("REPOWISE_KG_CURATION", val)
         assert curation_enabled() is True
 
-    @pytest.mark.parametrize("val", ["0", "false", "no", "off", "", "garbage"])
+    @pytest.mark.parametrize("val", ["0", "false", "FALSE", "no", "off"])
     def test_falsy_values_disable(self, monkeypatch, val):
         monkeypatch.setenv("REPOWISE_KG_CURATION", val)
         assert curation_enabled() is False

@@ -526,11 +526,11 @@ async def run_pipeline(
                 )
         _phase_done(progress, "knowledge_graph.skeleton")
 
-        # ---- KG curation/presentation pass (flagged, default off) --------
+        # ---- KG curation/presentation pass (flagged, default on) ---------
         # Reshapes only the exported KG (layers/tour/entry-points/summaries);
         # never touches the AST graph, communities, or centrality. No-op when
-        # the REPOWISE_KG_CURATION flag is off, so default output is unchanged.
-        # Runs in BOTH FAST and STANDARD (it sits before the generate branch).
+        # REPOWISE_KG_CURATION is set to a falsy value (the raw uncurated
+        # export). Runs in BOTH FAST and STANDARD (before the generate branch).
         if knowledge_graph_result is not None:
             from repowise.core.analysis.kg_curation import (
                 curate_knowledge_graph,

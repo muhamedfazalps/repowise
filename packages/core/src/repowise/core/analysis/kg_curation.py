@@ -14,10 +14,11 @@ It never mutates ``graph_builder``'s graph, ``graph_edges``, centrality caches,
 community detection, or any DB table. There is a regression test that asserts the
 graph's node/edge counts are identical before and after this pass.
 
-Curation is feature-flagged (``REPOWISE_KG_CURATION``) and defaults **off** so
-the exported KG is byte-identical to today's until the multi-repo validation
-gate passes. With the flag off, :func:`curate_knowledge_graph` is a no-op that
-returns its input unchanged.
+Curation is feature-flagged (``REPOWISE_KG_CURATION``) and defaults **on**;
+the 38-repo cross-language validation matrix is the acceptance gate that
+flipped it. Setting the flag to ``0``/``false``/``no``/``off`` makes
+:func:`curate_knowledge_graph` a no-op that returns its input unchanged
+(the raw uncurated export).
 """
 
 from __future__ import annotations
@@ -173,11 +174,14 @@ _MAX_ENTRY_POINTS = 8
 def curation_enabled() -> bool:
     """Whether KG curation is enabled via the ``REPOWISE_KG_CURATION`` env flag.
 
-    Defaults to **off**. Any of ``1``/``true``/``yes``/``on`` (case-insensitive)
-    turns it on. Resolved at the call site so :func:`curate_knowledge_graph`
-    itself stays pure and trivially testable with an explicit ``enabled=``.
+    Defaults to **on** — the cross-language validation matrix (38 pinned
+    repos, enforced density/orphan/catch-all thresholds, honest degradation
+    modes) is the acceptance gate that flipped it. Set ``0``/``false``/``no``/
+    ``off`` (case-insensitive) to fall back to the raw uncurated export.
+    Resolved at the call site so :func:`curate_knowledge_graph` itself stays
+    pure and trivially testable with an explicit ``enabled=``.
     """
-    return os.environ.get(_FLAG_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
+    return os.environ.get(_FLAG_ENV, "").strip().lower() not in {"0", "false", "no", "off"}
 
 
 def curate_knowledge_graph(
