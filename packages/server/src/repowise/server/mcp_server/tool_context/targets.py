@@ -13,7 +13,7 @@ import json
 import re
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from repowise.core.persistence.crud import get_kg_layers, get_kg_tour_steps
@@ -44,6 +44,15 @@ from repowise.server.mcp_server.tool_context.kg import (
     _find_layer_for_file,
     _find_tour_step_for_file,
 )
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE metacharacters (``%``, ``_``) and the escape char itself.
+
+    Paired with ``escape="\\"`` on every ``.like()`` so a target containing
+    ``_`` or ``%`` is matched literally instead of as a wildcard.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def _synthesize_structural_summary(file_path: str, classes: list[str], functions: list[str]) -> str:
@@ -123,15 +132,45 @@ async def _resolve_one_target(
             )
             page = res.scalar_one_or_none()
         if page is None:
-            # Partial match fallback for modules
-            res = await session.execute(
-                select(Page).where(
-                    Page.repository_id == repo_id,
-                    Page.page_type == "module_page",
-                    Page.target_path.contains(clean_target),
+            # Partial match fallback for modules — but only on a path-segment
+            # boundary, so "api" matches "src/api" yet "apiclient"/"pi" do not.
+            # Curated module ids are path-shaped, so a raw substring match can
+            # (a) hit 2+ module paths (→ MultipleResultsFound) and (b) shadow a
+            # real file of the same name. Guard against both here.
+            #
+            # First: if the target is itself a known real file (present in
+            # git_metadata, the same source the git fallback rung uses), do NOT
+            # let a partial module match preempt that — fall through so the
+            # ladder reaches the "exists but no wiki page" rung below.
+            file_meta_res = await session.execute(
+                select(GitMetadata.file_path).where(
+                    GitMetadata.repository_id == repo_id,
+                    GitMetadata.file_path == clean_target,
                 )
             )
-            page = res.scalar_one_or_none()
+            is_known_file = file_meta_res.scalar_one_or_none() is not None
+            if not is_known_file:
+                esc = _escape_like(clean_target)
+                res = await session.execute(
+                    select(Page).where(
+                        Page.repository_id == repo_id,
+                        Page.page_type == "module_page",
+                        or_(
+                            Page.target_path == clean_target,
+                            Page.target_path.like(f"%/{esc}", escape="\\"),
+                            Page.target_path.like(f"{esc}/%", escape="\\"),
+                            Page.target_path.like(f"%/{esc}/%", escape="\\"),
+                        ),
+                    )
+                )
+                # Deterministic pick when several module paths match: shortest
+                # target_path first, ties broken lexicographically. Module
+                # counts are small, so picking in Python is robust and cheap.
+                candidates = sorted(
+                    res.scalars().all(), key=lambda p: (len(p.target_path), p.target_path)
+                )
+                if candidates:
+                    page = candidates[0]
         if page:
             target_type = "module"
         else:
