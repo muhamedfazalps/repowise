@@ -40,6 +40,7 @@ async def run_generation(
     external_systems: list[dict] | None = None,
     on_page_ready: Any | None = None,
     prior_pages: dict[str, Any] | None = None,
+    kg_modules: list[dict] | None = None,
 ) -> list[Any]:
     """Run LLM-powered page generation.
 
@@ -137,6 +138,7 @@ async def run_generation(
         decision_report=decision_report,
         external_systems=external_systems,
         on_page_ready=on_page_ready,
+        kg_modules=kg_modules,
     )
 
     # Onboarding summary — count generated slots and surface which ones

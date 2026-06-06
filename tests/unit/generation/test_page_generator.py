@@ -448,3 +448,81 @@ def test_compute_cache_key_varies_by_language():
     assert gen_en._compute_cache_key("file_page", "x") != gen_ru._compute_cache_key(
         "file_page", "x"
     )
+
+
+async def test_generate_all_uses_in_memory_kg_modules_without_artifact_file():
+    """Curated module pages must come from the IN-MEMORY pipeline modules.
+
+    The knowledge-graph.json artifact is written AFTER generation, so on a
+    fresh init it does not exist when selection runs — relying on the file
+    silently fell back to community grouping (caught live on repowise's own
+    wiki: 20 community-N module pages on a curated run).
+    """
+    config = GenerationConfig(
+        max_tokens=256,
+        token_budget=100_000,
+        max_concurrency=2,
+        module_grouping="curated",
+        min_module_size=2,
+        coverage_pct=1.0,
+        module_page_share=1.0,
+        dedupe_near_clones=False,  # synthetic files are identical by design
+    )
+    provider = MockProvider()
+    assembler = ContextAssembler(config)
+    gen = PageGenerator(provider, assembler, config)
+
+    paths = [f"pkg/core/m{i}.py" for i in range(3)] + [f"pkg/web/w{i}.py" for i in range(3)]
+    parsed = []
+    for p in paths:
+        fi = _make_file_info(p, language="python")
+        sym = _make_symbol(file_path=p)
+        parsed.append(
+            ParsedFile(
+                file_info=fi, symbols=[sym], imports=[], exports=[],
+                docstring=None, parse_errors=[],
+            )
+        )
+    repo = RepoStructure(
+        is_monorepo=False,
+        packages=[],
+        root_language_distribution={"python": 1.0},
+        total_files=len(paths),
+        total_loc=100,
+        entry_points=[],
+    )
+    kg_modules = [
+        {
+            "id": "module:pkg-core",
+            "name": "core",
+            "path": "pkg/core",
+            "layerId": "layer:service",
+            "nodeIds": [f"file:{p}" for p in paths if "/core/" in p],
+            "language": "python",
+        },
+        {
+            "id": "module:pkg-web",
+            "name": "web",
+            "path": "pkg/web",
+            "layerId": "layer:ui",
+            "nodeIds": [f"file:{p}" for p in paths if "/web/" in p],
+            "language": "python",
+        },
+    ]
+
+    builder = _make_builder_with(parsed)
+    # repo_path deliberately omitted → no knowledge-graph.json on disk.
+    pages = await gen.generate_all(
+        parsed,
+        {p: b"pass" for p in paths},
+        builder,
+        repo,
+        "test-repo",
+        kg_modules=kg_modules,
+    )
+
+    module_pages = [p for p in pages if p.page_type == "module_page"]
+    targets = {p.target_path for p in module_pages}
+    assert targets, "no module pages generated"
+    assert targets <= {"pkg/core", "pkg/web"}, targets
+    assert not any(t.startswith("community-") for t in targets)

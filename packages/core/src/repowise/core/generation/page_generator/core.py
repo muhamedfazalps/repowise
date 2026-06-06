@@ -173,6 +173,7 @@ class PageGenerator(PerTypeGenerationMixin):
         decision_report: Any | None = None,
         external_systems: list[dict] | None = None,
         on_page_ready: Callable[[GeneratedPage], None] | None = None,
+        kg_modules: list[dict] | None = None,
     ) -> list[GeneratedPage]:
         """Generate all wiki pages for a repository.
 
@@ -200,6 +201,7 @@ class PageGenerator(PerTypeGenerationMixin):
             decision_report=decision_report,
             external_systems=external_systems,
             on_page_ready=on_page_ready,
+            kg_modules=kg_modules,
         )
 
     # ------------------------------------------------------------------

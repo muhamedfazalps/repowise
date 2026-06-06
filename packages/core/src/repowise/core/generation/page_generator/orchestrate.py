@@ -60,6 +60,7 @@ class _GenerationRun:
         decision_report: Any | None,
         external_systems: list[dict] | None,
         on_page_ready: Callable[[GeneratedPage], None] | None = None,
+        kg_modules: list[dict] | None = None,
     ) -> None:
         self.gen = gen
         self.config = gen._config
@@ -83,6 +84,11 @@ class _GenerationRun:
         self.resume = resume
         self.repo_path = repo_path
         self.external_systems = external_systems or []
+        # Curated wiki modules from the IN-MEMORY pipeline result. The kg_ctx
+        # file fallback below is one run stale on update and absent on a
+        # fresh init (the artifact is written AFTER generation) — the live
+        # repowise run shipped community-grouped module pages because of it.
+        self.kg_modules = kg_modules or []
 
         # ---- Graph metrics ----
         self.graph = graph_builder.graph()
@@ -214,10 +220,11 @@ class _GenerationRun:
                 git_meta_map=self.git_meta_map,
                 config=self.config,
                 kg_file_scores=kg_scores or None,
-                # Curated wiki modules from the KG artifact (pipeline order:
-                # curation runs before generation, so the artifact is fresh).
-                # Inert unless module_grouping == "curated".
-                kg_modules=self.kg_ctx.get_modules() or None,
+                # Curated wiki modules: prefer the in-memory pipeline
+                # result (fresh); the artifact file is absent on first init
+                # and one run stale on update. Inert unless
+                # module_grouping == "curated".
+                kg_modules=self.kg_modules or self.kg_ctx.get_modules() or None,
             )
         )
 

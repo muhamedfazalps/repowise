@@ -618,6 +618,13 @@ async def run_pipeline(
             decision_report=gen_decision_report,
             external_systems=external_systems,
             on_page_ready=on_page_ready,
+            # In-memory curated modules — the artifact file is written after
+            # generation, so it cannot carry them on a fresh init.
+            kg_modules=(
+                knowledge_graph_result.modules or None
+                if knowledge_graph_result is not None
+                else None
+            ),
         )
 
     # ---- Knowledge Graph LLM enrichment (layer naming + tour) -----------------
