@@ -13,7 +13,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from repowise.core.analysis.kg_curation import curate_knowledge_graph, curation_enabled
+from repowise.core.analysis.kg_curation import (
+    _dominant_language,
+    curate_knowledge_graph,
+    curation_enabled,
+)
 from repowise.core.analysis.knowledge_graph import (
     KnowledgeGraphResult,
     build_knowledge_graph_skeleton,
@@ -352,6 +356,23 @@ class TestCuratedLayers:
         assert a.layers == b.layers
 
 
+class TestDominantLanguageDeterminism:
+    def test_empty_input_returns_empty(self):
+        assert _dominant_language([]) == ""
+
+    def test_clear_majority_wins(self):
+        assert _dominant_language(["python", "python", "go"]) == "python"
+
+    def test_tie_is_order_independent(self):
+        # Counter.most_common breaks count ties by insertion order, which is
+        # ingestion-completion-order nondeterministic and reaches persisted
+        # output (graph_mode + tour prose). The same multiset must yield the
+        # same dominant language whatever order it was accumulated in.
+        forward = _dominant_language(["go", "go", "python", "python"])
+        reverse = _dominant_language(["python", "python", "go", "go"])
+        assert forward == reverse
+
+
 # ---------------------------------------------------------------------------
 # Phase 2 — entry-point precision
 # ---------------------------------------------------------------------------
@@ -419,6 +440,21 @@ class TestEntryPointPrecision:
     def test_flag_off_leaves_entry_points_untouched(self, entry_repo):
         kg = _curate(entry_repo, enabled=False)
         assert "entry_candidates" not in kg.project
+
+    def test_ruby_spec_dir_entry_excluded_via_language(self):
+        # A Ruby file under spec/ is RSpec material whatever its name; ruby
+        # declares spec/ as an unambiguous test-dir token, so the entry-point
+        # guards must pass language to infer_layer. Without it, config.rb
+        # classifies as a runtime layer and (flagged entry_point) leaks into
+        # the surfaced entry set.
+        repo = build_repo(
+            ["src/main.rb", "spec/dummy/config.rb"],
+            entries={"src/main.rb", "spec/dummy/config.rb"},
+        )
+        kg = _curate(repo, enabled=True)
+        assert "spec/dummy/config.rb" not in kg.project["entry_points"]
+        assert "spec/dummy/config.rb" not in kg.project["entry_candidates"]
+        assert "src/main.rb" in kg.project["entry_candidates"]
 
 
 # ---------------------------------------------------------------------------

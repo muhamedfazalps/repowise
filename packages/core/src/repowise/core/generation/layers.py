@@ -189,11 +189,6 @@ _EXAMPLE_DIR_TOKENS = frozenset(
 )
 
 
-def is_example_path(path: str) -> bool:
-    """Whether *path* sits under an examples/samples/demo directory."""
-    return any(s.lower() in _EXAMPLE_DIR_TOKENS for s in PurePosixPath(path).parts[:-1])
-
-
 # Documentation directories: sphinx/docusaurus/vitepress sites and runnable
 # doc snippets (libuv's docs/code/*/main.c, docfx template assets). Like the
 # example dirs above, their files carry entry-style names by convention but

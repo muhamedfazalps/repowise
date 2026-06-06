@@ -806,6 +806,20 @@ def _is_barrel(parsed_file: Any) -> bool:
     return has_reexports or exports_only or not symbols
 
 
+def _dominant_language(code_langs: list[str]) -> str:
+    """Most common language, ties broken deterministically.
+
+    ``Counter.most_common`` breaks count ties by insertion order, which is
+    thread-completion-order nondeterministic here — and the result reaches
+    persisted output (``project.graph_mode`` plus tour prose). Tie-break by
+    count descending, then language name ascending, so the same KG always
+    yields the same dominant language regardless of ingestion ordering.
+    """
+    if not code_langs:
+        return ""
+    return min(Counter(code_langs).items(), key=lambda kv: (-kv[1], kv[0]))[0]
+
+
 def _curate_entry_points(
     kg: KnowledgeGraphResult, parsed_files: list[Any], graph_builder: Any
 ) -> None:
@@ -821,6 +835,7 @@ def _curate_entry_points(
     on repos without a detectable main.
     """
     pf_by_path = {pf.file_info.path: pf for pf in parsed_files if getattr(pf, "file_info", None)}
+    lang_by_path = {n["filePath"]: (n.get("language") or "").lower() for n in _file_nodes(kg)}
     pagerank = graph_builder.pagerank() or {}
     try:
         betweenness = graph_builder.betweenness_centrality() or {}
@@ -836,7 +851,7 @@ def _curate_entry_points(
         if "entry_point" not in tags:
             continue
         path = node.get("filePath", "")
-        if infer_layer(path) in ADJACENT_LAYERS or is_support_path(path):
+        if infer_layer(path, node.get("language")) in ADJACENT_LAYERS or is_support_path(path):
             # Test fixtures (a wsgi.py inside tests/) and sample programs
             # (examples/*/main.go) may carry the ingestion flag, but they are
             # not where a reader enters the system.
@@ -858,7 +873,7 @@ def _curate_entry_points(
         for s, path in score_entry_points(parsed_files, pagerank):
             if s < 3.0:
                 continue
-            if infer_layer(path) in ADJACENT_LAYERS or is_support_path(path):
+            if infer_layer(path, lang_by_path.get(path)) in ADJACENT_LAYERS or is_support_path(path):
                 continue
             pf = pf_by_path.get(path)
             if pf is not None and _is_barrel(pf):
@@ -1092,7 +1107,7 @@ def _curate_tour(
         for p, lang in lang_by_path.items()
         if lang and type_by_path.get(p) not in {"config", "document"}
     ]
-    dominant_lang = Counter(code_langs).most_common(1)[0][0] if code_langs else ""
+    dominant_lang = _dominant_language(code_langs)
     # How much may the tour honestly claim? Exported additively so
     # consumers (UI, harness) can see the degradation level.
     graph_mode = _graph_mode(dominant_lang, lang_by_path, graph_builder)

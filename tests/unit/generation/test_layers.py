@@ -66,13 +66,15 @@ def test_infer_layer_colocated_test_files_are_test():
     assert infer_layer("rack-protection/spec/spec_helper.rb") == "Test"
 
 
-def test_is_example_path_matches_demo_dirs():
-    from repowise.core.generation.layers import is_example_path
-
-    assert is_example_path("examples/auth/index.js")
-    assert is_example_path("_examples/hello-world/main.go")
-    assert not is_example_path("src/app/main.go")
-    assert not is_example_path("example.py")  # a file, not a dir
+def test_infer_layer_ambiguous_spec_dir_needs_language_corroboration():
+    # Ruby declares spec/ as an unambiguous test-dir token: a Ruby file under
+    # spec/ is RSpec material whatever its name, so config.ru is Test only when
+    # the language is supplied. Omitting language leaves the ambiguous "spec"
+    # token uncorroborated and the file falls through (not Test) — this
+    # divergence is exactly what the curation/tour guard sites must respect by
+    # passing language to infer_layer.
+    assert infer_layer("spec/dummy/config.ru", "ruby") == "Test"
+    assert infer_layer("spec/dummy/config.ru") != "Test"
 
 
 def test_infer_layer_root_dot_dirs_are_tooling_config():

@@ -139,7 +139,7 @@ def score_entry_points(
         language = (getattr(fi, "language", "") or "").lower()
         entry_eligible = (
             language not in _NON_CODE_LANGUAGES
-            and infer_layer(path) not in ADJACENT_LAYERS
+            and infer_layer(path, language) not in ADJACENT_LAYERS
             and not is_support_path(path)
         )
         if entry_eligible and getattr(fi, "is_entry_point", False):
@@ -248,7 +248,7 @@ def build_tour(
         if getattr(p, "file_info", None)
         and (
             (getattr(p.file_info, "language", "") or "").lower() in _NON_CODE_LANGUAGES
-            or infer_layer(p.file_info.path) in ADJACENT_LAYERS
+            or infer_layer(p.file_info.path, p.file_info.language) in ADJACENT_LAYERS
             or is_support_path(p.file_info.path)
         )
     }
