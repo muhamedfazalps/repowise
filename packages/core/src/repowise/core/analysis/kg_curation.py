@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
@@ -139,6 +140,7 @@ __all__ = [
     "build_portable_kg",
     "curate_knowledge_graph",
     "curation_enabled",
+    "derive_modules",
     "validate_kg",
 ]
 
@@ -216,12 +218,27 @@ def curate_knowledge_graph(
     # export. Steps are layered in by subsequent phases:
     #   _curate_layers -> _curate_entry_points -> _curate_tour
     #   -> _curate_node_types -> _curate_summaries
+    layers_curated = False
     try:
         curated = _curate_layers(kg, graph_builder)
         if curated is not None:
             kg.layers = curated
+            layers_curated = True
     except Exception:  # pragma: no cover - defensive; keep uncurated layers
         logger.exception("kg_curation._curate_layers failed; keeping community layers")
+
+    # Wiki modules are a *sibling* artifact of the curated layers (same
+    # splitting machinery, module-sized granularity). Only derived when the
+    # spine landed — community layers would make the dir-split meaningless,
+    # and downstream consumers fall back to community grouping when this
+    # stays empty (the fallback matrix's "degraded" row).
+    if layers_curated:
+        try:
+            modules = _curate_modules(kg)
+            if modules is not None:
+                kg.modules = modules
+        except Exception:  # pragma: no cover - defensive; ship no modules
+            logger.exception("kg_curation._curate_modules failed; exporting no modules")
 
     try:
         _curate_entry_points(kg, parsed_files, graph_builder)
@@ -395,6 +412,294 @@ def _curate_layers(kg: KnowledgeGraphResult, graph_builder: Any) -> list[dict] |
         )
         return None
     return layers
+
+
+# ---------------------------------------------------------------------------
+# Wiki modules — right-sized directory groups derived from the curated layers
+# ---------------------------------------------------------------------------
+
+# Granularity window for derived wiki modules. Sub-groups verbatim are NOT
+# module-sized (a 452-file ``core`` sub-group would make one vague mush of a
+# doc; a 1-file ``examples`` group would mint a confetti page), so the layer
+# node sets are split *recursively* by directory until every group fits the
+# window — bottoming out honestly on flat directories. ``target_max`` keeps
+# the 10 key-file template slots representative; ``target_min`` is the
+# merge-up floor below which a group folds into its nearest sibling.
+_MODULE_TARGET_MIN = 8
+_MODULE_TARGET_MAX = 120
+# A layer smaller than this yields no module at all (matches the selection
+# layer's ``min_module_size`` floor that kills singleton pages).
+_MODULE_MIN_FILES = 3
+# A directory segment present in more than this fraction of all repo paths is
+# *generic* (namespace dirs: ``src``, ``packages``, the repo's own name) and
+# never appears in a module name. Data-driven — no hardcoded segment list.
+_GENERIC_SEGMENT_FRACTION = 0.60
+# The legacy community labels' size-suffix dedupe ("ingestion (32)") is the
+# exact failure mode module names must never reproduce.
+_SIZE_SUFFIX_RE = re.compile(r"\(\d+\)\s*$")
+
+
+def _generic_segments(paths: list[str]) -> set[str]:
+    """Directory segments appearing in > 60% of *paths* (namespace noise)."""
+    n = len(paths)
+    if not n:
+        return set()
+    counts: Counter[str] = Counter()
+    for p in paths:
+        for seg in set(PurePosixPath(p).parts[:-1]):
+            counts[seg] += 1
+    return {s for s, c in counts.items() if c / n > _GENERIC_SEGMENT_FRACTION}
+
+
+def _split_to_granularity(
+    node_ids: list[str], id_to_path: dict[str, str], target_max: int
+) -> list[tuple[tuple[str, ...], list[str]]]:
+    """Recursively split *node_ids* by directory until groups fit *target_max*.
+
+    Returns ``[(dir_segments, sorted_node_ids), ...]``. Reuses ``_sub_split``'s
+    prefix logic (group by the first segment that distinguishes members after
+    the common directory prefix) but, unlike sub-groups, recurses into any
+    group still above ``target_max``. Recursion bottoms out when a directory
+    has no distinguishing subdirs — a 200-file flat dir stays one module
+    (honest), never an artificial split.
+    """
+    dir_segs = {nid: PurePosixPath(id_to_path[nid]).parts[:-1] for nid in node_ids}
+
+    def rec(ids: list[str]) -> list[tuple[tuple[str, ...], list[str]]]:
+        common = _common_dir_prefix([dir_segs[i] for i in ids])
+        if len(ids) <= target_max:
+            return [(common, ids)]
+        groups: dict[str, list[str]] = defaultdict(list)
+        for nid in ids:
+            segs = dir_segs[nid]
+            key = segs[len(common)] if len(segs) > len(common) else ""
+            groups[key].append(nid)
+        if len(groups) < 2:
+            return [(common, ids)]  # flat directory — no honest split exists
+        out: list[tuple[tuple[str, ...], list[str]]] = []
+        for key in sorted(groups):
+            if key == "":
+                # Files sitting directly in the common dir (the "(root)"
+                # group). Usually below target_min → folded by merge-up.
+                out.append((common, groups[key]))
+            else:
+                out.extend(rec(groups[key]))
+        return out
+
+    return [(d, sorted(ids)) for d, ids in rec(sorted(node_ids))]
+
+
+def _merge_small_groups(
+    groups: list[tuple[tuple[str, ...], list[str]]], target_min: int
+) -> list[tuple[tuple[str, ...], list[str]]]:
+    """Fold groups below *target_min* into their nearest sibling.
+
+    "Nearest" = the group sharing the longest directory prefix (the parent
+    subtree), largest first as the tie-break — so a 2-file "(root)" remnant
+    folds into its own subtree's biggest module, and an isolated small dir
+    folds into the layer's dominant module rather than minting a confetti
+    page. Never merges across layers (callers pass one layer at a time). A
+    layer that is itself below ``target_min`` stays one whole group.
+    """
+    merged = [(d, list(ids)) for d, ids in groups]
+
+    def shared(a: tuple[str, ...], b: tuple[str, ...]) -> int:
+        return len(_common_dir_prefix([a, b]))
+
+    while len(merged) > 1:
+        small = min(
+            (g for g in merged if len(g[1]) < target_min),
+            key=lambda g: (len(g[1]), g[0]),
+            default=None,
+        )
+        if small is None:
+            break
+        merged.remove(small)
+        target = min(
+            merged,
+            key=lambda g: (-shared(g[0], small[0]), -len(g[1]), g[0]),
+        )
+        target[1].extend(small[1])
+        target[1].sort()
+    return [(d, ids) for d, ids in merged]
+
+
+def _name_modules(mods: list[dict], generic: set[str]) -> None:
+    """Assign unique, human module names in place.
+
+    Initial name = the last one or two *informative* directory segments (generic
+    namespace segments stripped). Collisions extend leftward by one more
+    informative parent segment — NEVER a size suffix. Single-module layers
+    take the layer's name; a surviving root group (no informative segments)
+    becomes "<Layer> (top-level)". The absolute fallback (identical
+    informative paths across layers) appends the layer name, which is unique
+    by construction.
+    """
+    per_layer: Counter[str] = Counter(m["layerId"] for m in mods)
+    info_by: dict[int, list[str]] = {}
+    used: dict[int, int | None] = {}  # informative segments consumed; None = fixed
+    for m in mods:
+        info = [s for s in m["_dir"] if s not in generic]
+        info_by[id(m)] = info
+        if per_layer[m["layerId"]] == 1:
+            m["name"] = m["_layerName"]
+            used[id(m)] = None
+        elif not info:
+            m["name"] = f"{m['_layerName']} (top-level)"
+            used[id(m)] = None
+        else:
+            k = min(2, len(info))
+            m["name"] = "/".join(info[-k:])
+            used[id(m)] = k
+
+    for _ in range(16):  # bounded: each round consumes ≥1 segment somewhere
+        names = Counter(m["name"] for m in mods)
+        colliding = [m for m in mods if names[m["name"]] > 1]
+        if not colliding:
+            return
+        progressed = False
+        for m in colliding:
+            k = used.get(id(m))
+            info = info_by[id(m)]
+            if k is not None and k < len(info):
+                used[id(m)] = k + 1
+                m["name"] = "/".join(info[-(k + 1) :])
+                progressed = True
+        if not progressed:
+            break
+
+    # Same informative dir in two layers (or no segments left): the layer
+    # name disambiguates — (dir, layer) is unique by construction.
+    names = Counter(m["name"] for m in mods)
+    for m in mods:
+        if names[m["name"]] > 1:
+            m["name"] = f"{m['name']} ({m['_layerName']})"
+
+
+def derive_modules(
+    layers: list[dict],
+    id_to_path: dict[str, str],
+    *,
+    target_min: int = _MODULE_TARGET_MIN,
+    target_max: int = _MODULE_TARGET_MAX,
+    min_module_size: int = _MODULE_MIN_FILES,
+    lang_by_id: dict[str, str] | None = None,
+) -> list[dict]:
+    """Derive right-sized, stably-identified wiki modules from curated layers.
+
+    ``Module = {"id": "module:<dir-slug>", "name": <human>, "path": <dir or "">,
+    "layerId": ..., "nodeIds": [...], "language": ...}``
+
+    Properties (each one an edge case from the research pass):
+
+    - **Partition per layer**: every node of every layer ≥ ``min_module_size``
+      lands in exactly one module; layers below the floor yield none. Never
+      merges across layers.
+    - **Granularity**: recursive directory splitting to the
+      [``target_min``, ``target_max``] window; flat dirs stay one honest
+      module; sub-``target_min`` remnants merge up into their subtree.
+    - **Names**: informative path segments only (data-driven generic-segment
+      stripping kills ``src``/``packages``/repo-name automatically); collision
+      resolution extends the path leftward — never a size suffix.
+    - **Ids**: ``module:`` + slug of the real directory path — stable across
+      runs and under file adds/renames inside the dir; changes only when the
+      directory itself moves. ``path`` is the actual dir (not the slug) so
+      path-prefix child lookups (``target_path LIKE 'dir/%'``) work.
+    - **Files only**: operates on ids present in ``id_to_path`` — external
+      nodes never pollute a module.
+    - **Determinism**: sorted iteration throughout; same inputs → same bytes.
+    """
+    generic = _generic_segments(sorted(set(id_to_path.values())))
+
+    mods: list[dict] = []
+    for layer in layers:
+        node_ids = [nid for nid in layer.get("nodeIds", []) if nid in id_to_path]
+        if len(node_ids) < min_module_size:
+            continue
+        groups = _merge_small_groups(
+            _split_to_granularity(node_ids, id_to_path, target_max), target_min
+        )
+        for dir_parts, ids in sorted(groups):
+            mods.append(
+                {
+                    "_dir": dir_parts,
+                    "_layerName": layer.get("name", ""),
+                    "path": "/".join(dir_parts),
+                    "layerId": layer.get("id", ""),
+                    "nodeIds": sorted(ids),
+                }
+            )
+
+    _name_modules(mods, generic)
+
+    # Ids: path-derived slugs; the bigger module keeps the plain id on the
+    # rare cross-layer dir collision (a dir whose files split across layers).
+    used_ids: set[str] = set()
+    for m in sorted(mods, key=lambda m: (-len(m["nodeIds"]), m["path"], m["layerId"])):
+        base = "module:" + _slugify(m["path"] or m["_layerName"])
+        mid = base
+        n = 1
+        while mid in used_ids:
+            mid = f"{base}--{_slugify(m['_layerName'])}" + ("" if n == 1 else f"-{n}")
+            n += 1
+        used_ids.add(mid)
+        m["id"] = mid
+
+    out: list[dict] = []
+    for m in mods:
+        module = {
+            "id": m["id"],
+            "name": m["name"],
+            "path": m["path"],
+            "layerId": m["layerId"],
+            "nodeIds": m["nodeIds"],
+        }
+        if lang_by_id is not None:
+            langs = Counter(
+                lang for nid in m["nodeIds"] if (lang := lang_by_id.get(nid, ""))
+            )
+            module["language"] = (
+                min(langs, key=lambda tag: (-langs[tag], tag)) if langs else ""
+            )
+        out.append(module)
+    return out
+
+
+def _curate_modules(kg: KnowledgeGraphResult) -> list[dict] | None:
+    """Derive wiki modules from the curated layers, or ``None`` on degradation.
+
+    Mirrors ``_curate_layers``' honest-degradation guard: a partition or
+    uniqueness violation ships *no* modules (consumers fall back to community
+    grouping) rather than a broken artifact.
+    """
+    file_nodes = _file_nodes(kg)
+    if not file_nodes:
+        return None
+    id_to_path = {n["id"]: n["filePath"] for n in file_nodes}
+    lang_by_id = {n["id"]: (n.get("language") or "").lower() for n in file_nodes}
+
+    modules = derive_modules(kg.layers, id_to_path, lang_by_id=lang_by_id)
+    if not modules:
+        return None
+
+    seen: set[str] = set()
+    for m in modules:
+        for nid in m["nodeIds"]:
+            if nid in seen or nid not in id_to_path:
+                logger.warning(
+                    "kg_curation: derived modules failed partition invariant; "
+                    "exporting no modules"
+                )
+                return None
+            seen.add(nid)
+    names = [m["name"] for m in modules]
+    ids = [m["id"] for m in modules]
+    if len(set(names)) != len(names) or len(set(ids)) != len(ids):
+        logger.warning(
+            "kg_curation: derived module names/ids not unique; exporting no modules"
+        )
+        return None
+    return modules
 
 
 # ---------------------------------------------------------------------------
@@ -1295,6 +1600,32 @@ def validate_kg(kg: KnowledgeGraphResult) -> KGValidation:
         if tour_coverage < _MIN_TOUR_COVERAGE:
             warnings.append(f"tour covers {tour_coverage:.0%} of layers < {_MIN_TOUR_COVERAGE:.0%}")
 
+    # -- Modules (only when the curated artifact carries them) -------------
+    modules = getattr(kg, "modules", None) or []
+    module_covered: set[str] = set()
+    if modules:
+        module_member_lists = [m.get("nodeIds", []) for m in modules]
+        flat = [nid for ids in module_member_lists for nid in ids]
+        module_covered = set(flat)
+        if len(flat) != len(module_covered):
+            errors.append("modules: a file appears in more than one module")
+        if not module_covered <= file_ids:
+            errors.append(
+                f"modules: {len(module_covered - file_ids)} unknown ids in modules"
+            )
+        module_names = [m.get("name", "") for m in modules]
+        if len(set(module_names)) != len(module_names):
+            errors.append("modules: names not unique")
+        size_suffixed = [n for n in module_names if _SIZE_SUFFIX_RE.search(n)]
+        if size_suffixed:
+            errors.append(f"modules: size-suffixed names: {size_suffixed}")
+        oversized = sum(
+            1 for ids in module_member_lists if len(ids) > _MODULE_TARGET_MAX
+        )
+        if oversized:
+            # Flat dirs may honestly exceed the window — soft signal only.
+            warnings.append(f"{oversized} modules above target_max (flat dirs?)")
+
     # -- Summaries ---------------------------------------------------------
     empty_summaries = [nid for nid, s in summary_by_id.items() if not s]
     if empty_summaries:
@@ -1304,6 +1635,10 @@ def validate_kg(kg: KnowledgeGraphResult) -> KGValidation:
     metrics = {
         "file_count": file_count,
         "layer_count": n_layers,
+        "module_count": len(modules),
+        "module_coverage_pct": round(
+            (len(module_covered) / file_count * 100) if (modules and file_count) else 0.0, 1
+        ),
         "singleton_layer_pct": round(singleton_frac * 100, 1),
         "largest_layer_pct": round(largest_frac * 100, 1),
         "application_pct": round(catchall_frac * 100, 1),
@@ -1338,6 +1673,7 @@ def build_portable_kg(kg: KnowledgeGraphResult) -> tuple[dict, KGValidation]:
         "fingerprint": getattr(kg, "fingerprint", ""),
         "file_count": validation.metrics.get("file_count", 0),
         "layer_count": validation.metrics.get("layer_count", 0),
+        "module_count": validation.metrics.get("module_count", 0),
         "entry_point_count": validation.metrics.get("entry_point_count", 0),
         "tour_steps": validation.metrics.get("tour_steps", 0),
         "validation": validation.as_dict(),

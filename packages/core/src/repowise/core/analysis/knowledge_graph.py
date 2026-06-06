@@ -25,6 +25,11 @@ class KnowledgeGraphResult:
     edges: list[dict] = field(default_factory=list)
     layers: list[dict] = field(default_factory=list)
     tour: list[dict] = field(default_factory=list)
+    # Curated wiki modules (``derive_modules`` in kg_curation): right-sized
+    # directory groups with stable path-derived ids. Only the curated export
+    # populates this; empty means the key is omitted from ``to_dict`` so the
+    # flag-off artifact stays byte-identical.
+    modules: list[dict] = field(default_factory=list)
     fingerprint: str = ""
 
     def to_dict(self) -> dict:
@@ -53,7 +58,7 @@ class KnowledgeGraphResult:
             return out
 
         layers = [_canonical_layer(layer) for layer in self.layers]
-        return {
+        out = {
             "version": "1.0.0",
             "project": self.project,
             "nodes": nodes,
@@ -61,6 +66,13 @@ class KnowledgeGraphResult:
             "layers": layers,
             "tour": self.tour,
         }
+        if self.modules:
+            # Additive key: present only when curation derived modules, so
+            # the uncurated export's byte shape is unchanged.
+            out["modules"] = [
+                {**m, "nodeIds": sorted(m.get("nodeIds", []))} for m in self.modules
+            ]
+        return out
 
     @classmethod
     def from_file(cls, path: Path) -> KnowledgeGraphResult | None:
@@ -75,6 +87,7 @@ class KnowledgeGraphResult:
             edges=data.get("edges", []),
             layers=data.get("layers", []),
             tour=data.get("tour", []),
+            modules=data.get("modules", []),
         )
 
 
