@@ -112,15 +112,16 @@ class GenerationConfig:
     file_page_min_symbols: int = 1
     skip_trivial_files: bool = True
     dedupe_near_clones: bool = True
-    # Module-page grouping source. "community" groups by graph communities
-    # (the long-standing default), "top_dir" by top-level directory, and
-    # "curated" by the wiki modules the KG curation pass derives (stable
-    # path ids, human names, right-sized groups). "curated" silently falls
-    # back to "community" when no curated modules are available (curation
-    # off, degraded, or no KG artifact), so it is always safe to set.
+    # Module-page grouping source. "curated" (default) groups by the wiki
+    # modules the KG curation pass derives (stable path ids, human names,
+    # right-sized groups) and silently falls back to "community" when no
+    # curated modules are available (curation off, degraded, or no KG
+    # artifact), so it is always safe. "community" groups by raw graph
+    # communities (the pre-curation behavior, kept as the escape hatch),
+    # "top_dir" by top-level directory.
     # min_module_size is the floor below which a group doesn't get its own
     # page (its files still appear under file_page).
-    module_grouping: Literal["community", "top_dir", "curated"] = "community"
+    module_grouping: Literal["community", "top_dir", "curated"] = "curated"
     min_module_size: int = 3
     # Phase 3: emit the curated Onboarding collection at level 8. Each
     # subkind defines its own gate; slots whose gates fail are silently

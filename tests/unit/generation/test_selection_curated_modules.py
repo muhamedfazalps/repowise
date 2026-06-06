@@ -209,17 +209,17 @@ class TestFallbackMatrix:
 
 
 class TestGoldenByteIdentity:
-    def test_default_selection_identical_with_and_without_kg_modules(self):
-        """With the default grouping, kg_modules must change NOTHING.
+    def test_community_selection_identical_with_and_without_kg_modules(self):
+        """With the "community" escape hatch, kg_modules must change NOTHING.
 
-        This is the rollout guarantee: every phase lands dark, and every
-        existing user/CI path produces an identical Selection until the
-        default flips in its own one-line commit.
+        This was the ship-dark rollout guarantee while "community" was the
+        default; post-flip it pins the revert story — setting
+        module_grouping="community" restores the pre-curation selection
+        byte-for-byte regardless of what the KG artifact carries.
         """
         parsed, pr, bet, comm = _build_synthetic_repo(300)
         _, _, _, modules = _repo_with_modules()
-        cfg = GenerationConfig()  # default module_grouping ("community")
-        assert cfg.module_grouping == "community"
+        cfg = GenerationConfig(module_grouping="community")
 
         def run(kg_modules):
             return select_pages(
