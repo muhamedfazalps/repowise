@@ -11,7 +11,9 @@
  * Deliberately two-state — no "System" option (product decision: keep the
  * choice explicit). Consumers set `enableSystem={false}` on their provider;
  * the mount effect below migrates any stale persisted "system" value to the
- * dark default so pre-simplification visitors don't keep an unknown theme.
+ * light default so pre-simplification visitors don't keep an unknown theme.
+ * The migration only fires for non light/dark values, so an explicit Light or
+ * Dark choice is never rewritten.
  *
  * Renders nothing theme-dependent until mounted so the control doesn't flash
  * the wrong selection during hydration (next-themes returns `undefined` on
@@ -43,9 +45,10 @@ export function ThemeToggle({ compact = false, className }: ThemeToggleProps) {
   }, []);
 
   // Migrate a persisted "system" (or any unknown) theme from before the
-  // simplification to the explicit dark default.
+  // simplification to the explicit light default. Only fires for non
+  // light/dark values, so an explicit user choice is never clobbered.
   useEffect(() => {
-    if (mounted && theme !== "light" && theme !== "dark") setTheme("dark");
+    if (mounted && theme !== "light" && theme !== "dark") setTheme("light");
   }, [mounted, theme, setTheme]);
 
   return (
