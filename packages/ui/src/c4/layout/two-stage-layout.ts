@@ -122,12 +122,22 @@ export async function computeStage1Layout(
   portalNodes: PortalSpec[],
   edges: { id: string; source: string; target: string }[],
   containerSizeMemory: Map<string, { width: number; height: number }>,
+  expandedContainerIds?: Set<string>,
 ): Promise<Stage1Result> {
   const allNodes: { id: string; width: number; height: number }[] = [];
 
   for (const container of containers) {
-    const memorized = containerSizeMemory.get(container.id);
-    const size = memorized ?? container.estimatedSize ?? estimateContainerSize(container.childNodeIds.length);
+    // A collapsed container renders as a small card; sizing it by its
+    // child-count estimate hands ELK an up-to-800×600 phantom box, which
+    // scatters the cards across acres of whitespace and anchors edge
+    // arrowheads at the phantom's midpoint — arrows pointing into empty
+    // canvas. Only an expanded container occupies its measured footprint.
+    const expanded = expandedContainerIds?.has(container.id) ?? false;
+    const size = expanded
+      ? containerSizeMemory.get(container.id)
+        ?? container.estimatedSize
+        ?? estimateContainerSize(container.childNodeIds.length)
+      : ARCH_NODE_SIZES.containerCollapsed;
     allNodes.push({ id: container.id, width: size.width, height: size.height });
   }
 

@@ -53,4 +53,6 @@ export const ARCH_NODE_SIZES = {
   endpoint:     { width: 260, height: 110 },
   schema:       { width: 260, height: 110 },
   resource:     { width: 260, height: 110 },
+  /** Collapsed folder container card (ArchContainerNode, chevron closed). */
+  containerCollapsed: { width: 260, height: 64 },
 } as const;

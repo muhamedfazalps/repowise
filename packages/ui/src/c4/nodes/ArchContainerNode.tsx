@@ -31,9 +31,13 @@ function ArchContainerNodeImpl(props: NodeProps) {
     useArchitectureStore.getState().selectNode(containerId);
   };
 
+  // Diagram ink, not panel chrome: the panel border tokens sit at ~12% alpha
+  // and disappear into the paper canvas in light mode, leaving the (full-ink)
+  // edges pointing at boxes the eye can't see. Folder containers are
+  // supporting-cast boxes, so they take the faded-ink outline.
   const borderColor = selected
     ? THEME.selection.ring
-    : THEME.border.subtle;
+    : "var(--color-kg-node-border-2)";
 
   return (
     <div
@@ -54,7 +58,7 @@ function ArchContainerNodeImpl(props: NodeProps) {
         minHeight: expanded ? undefined : 56,
         background: hovered ? THEME.surface.washHover : THEME.surface.wash,
         border: `1.5px solid ${borderColor}`,
-        borderLeft: `3px solid ${selected ? THEME.selection.ring : THEME.border.default}`,
+        borderLeft: `3px solid ${selected ? THEME.selection.ring : "var(--color-kg-node-border-2)"}`,
         borderRadius: 12,
         padding: "10px 14px",
         display: "flex",

@@ -152,6 +152,11 @@ function ArchitectureViewInner({ repoId, repoName }: { repoId: string; repoName:
 
   const syncingRef = useRef(false);
   useEffect(() => {
+    // Until the deep-link restore above has run, the store still holds its
+    // default overview state — syncing that to the URL would null out the
+    // very params the restore is about to read, so every shared link
+    // snapped back to the overview.
+    if (!initializedRef.current) return;
     if (syncingRef.current) return;
     syncingRef.current = true;
     void setViewParam(
