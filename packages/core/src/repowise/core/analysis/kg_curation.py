@@ -439,8 +439,13 @@ _GENERIC_SEGMENT_FRACTION = 0.60
 _SIZE_SUFFIX_RE = re.compile(r"\(\d+\)\s*$")
 
 
-def _generic_segments(paths: list[str]) -> set[str]:
-    """Directory segments appearing in > 60% of *paths* (namespace noise)."""
+def dominant_segments(paths: list[str]) -> set[str]:
+    """Directory segments appearing in > 60% of *paths* (namespace noise).
+
+    Shared with community labeling (``analysis/communities.py``) so both
+    vocabularies strip the same namespace dirs (``src``, ``packages``, the
+    repo's own name) without depending on a hardcoded list.
+    """
     n = len(paths)
     if not n:
         return set()
@@ -609,7 +614,7 @@ def derive_modules(
       nodes never pollute a module.
     - **Determinism**: sorted iteration throughout; same inputs → same bytes.
     """
-    generic = _generic_segments(sorted(set(id_to_path.values())))
+    generic = dominant_segments(sorted(set(id_to_path.values())))
 
     mods: list[dict] = []
     for layer in layers:

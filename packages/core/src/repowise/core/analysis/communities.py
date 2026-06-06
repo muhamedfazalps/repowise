@@ -21,6 +21,8 @@ from pathlib import PurePosixPath
 import networkx as nx
 import structlog
 
+from repowise.core.analysis.kg_curation import dominant_segments
+
 log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -214,7 +216,9 @@ def _cohesion_score(G: nx.Graph, community_nodes: list[str]) -> float:
 # ---------------------------------------------------------------------------
 
 
-def _collect_path_segments(member_paths: list[str]) -> Counter[str]:
+def _collect_path_segments(
+    member_paths: list[str], extra_generic: frozenset[str] = frozenset()
+) -> Counter[str]:
     """Count non-generic directory segments across all member paths.
 
     Each path contributes at most once per segment to avoid
@@ -226,14 +230,21 @@ def _collect_path_segments(member_paths: list[str]) -> Counter[str]:
         seen: set[str] = set()
         for part in parts[:-1]:  # exclude filename
             lower = part.lower()
-            if lower not in _GENERIC_SEGMENTS and len(lower) > 1 and not lower.startswith("."):
+            if (
+                lower not in _GENERIC_SEGMENTS
+                and lower not in extra_generic
+                and len(lower) > 1
+                and not lower.startswith(".")
+            ):
                 if lower not in seen:
                     counter[lower] += 1
                     seen.add(lower)
     return counter
 
 
-def _best_sub_label(member_paths: list[str], primary: str) -> str:
+def _best_sub_label(
+    member_paths: list[str], primary: str, extra_generic: frozenset[str] = frozenset()
+) -> str:
     """Find the best distinguishing sub-segment within paths that contain *primary*.
 
     Given a community labeled "web", looks at paths containing "web" and
@@ -255,6 +266,7 @@ def _best_sub_label(member_paths: list[str], primary: str) -> str:
             if (
                 lower != primary_lower
                 and lower not in _GENERIC_SEGMENTS
+                and lower not in extra_generic
                 and len(lower) > 1
                 and not lower.startswith(".")
                 and lower not in seen
@@ -270,24 +282,30 @@ def _best_sub_label(member_paths: list[str], primary: str) -> str:
     return ""
 
 
-def _heuristic_label(member_paths: list[str], community_id: int) -> str:
+def _heuristic_label(
+    member_paths: list[str],
+    community_id: int,
+    extra_generic: frozenset[str] = frozenset(),
+) -> str:
     """Derive a human-readable label from member file paths.
 
-    Produces labels like ``"web/components"`` or ``"repowise/ingestion"``.
+    Produces labels like ``"web/components"`` or ``"core/ingestion"``.
     When multiple communities share the same top-level segment, the
-    sub-label differentiates them.
+    sub-label differentiates them. *extra_generic* carries repo-dominant
+    namespace segments (the repo's own name, ``src``…) that must never
+    become labels.
     """
     if not member_paths:
         return f"cluster_{community_id}"
 
     # Strategy 1: most common non-generic directory segment
-    seg_counter = _collect_path_segments(member_paths)
+    seg_counter = _collect_path_segments(member_paths, extra_generic)
 
     if seg_counter:
         best_seg, best_count = seg_counter.most_common(1)[0]
         if best_count / len(member_paths) >= 0.4:
             # Try to find a distinguishing sub-segment
-            sub = _best_sub_label(member_paths, best_seg)
+            sub = _best_sub_label(member_paths, best_seg, extra_generic)
             return f"{best_seg}/{sub}" if sub else best_seg
 
     # Strategy 2: keyword frequency in filenames
@@ -307,7 +325,7 @@ def _heuristic_label(member_paths: list[str], community_id: int) -> str:
     stem_counter2: Counter[str] = Counter()
     for path in member_paths:
         stem = PurePosixPath(path).stem.lower()
-        if stem not in _GENERIC_SEGMENTS and len(stem) > 1:
+        if stem not in _GENERIC_SEGMENTS and stem not in extra_generic and len(stem) > 1:
             stem_counter2[stem] += 1
     if stem_counter2:
         return stem_counter2.most_common(1)[0][0]
@@ -315,7 +333,10 @@ def _heuristic_label(member_paths: list[str], community_id: int) -> str:
     return f"cluster_{community_id}"
 
 
-def _deduplicate_labels(communities_info: dict[int, "CommunityInfo"]) -> None:
+def _deduplicate_labels(
+    communities_info: dict[int, "CommunityInfo"],
+    extra_generic: frozenset[str] = frozenset(),
+) -> None:
     """Add sub-labels to disambiguate communities that share the same label.
 
     Mutates *communities_info* in place.  Only touches communities whose
@@ -337,7 +358,7 @@ def _deduplicate_labels(communities_info: dict[int, "CommunityInfo"]) -> None:
             if "/" in ci.label:
                 continue  # already has a sub-label
 
-            sub = _best_sub_label(ci.members, base)
+            sub = _best_sub_label(ci.members, base, extra_generic)
             if sub:
                 ci.label = f"{base}/{sub}"
 
@@ -516,11 +537,15 @@ def detect_file_communities(
             if not full_undirected.has_edge(u, v):
                 full_undirected.add_edge(u, v)
 
+    # Repo-dominant namespace segments (the repo's own package name, ``src``…)
+    # are noise, not labels — same data-driven stripping as module naming.
+    extra_generic = frozenset(s.lower() for s in dominant_segments(sorted(file_nodes)))
+
     for cid, members in community_members.items():
         sorted_members = sorted(members)
         communities_info[cid] = CommunityInfo(
             community_id=cid,
-            label=_heuristic_label(sorted_members, cid),
+            label=_heuristic_label(sorted_members, cid, extra_generic),
             members=sorted_members,
             size=len(sorted_members),
             cohesion=_cohesion_score(full_undirected, sorted_members),
@@ -529,7 +554,7 @@ def detect_file_communities(
 
     # Deduplicate labels — add sub-labels when multiple communities
     # share the same base (e.g. "web" → "web/components", "web/api")
-    _deduplicate_labels(communities_info)
+    _deduplicate_labels(communities_info, extra_generic)
 
     log.info(
         "file_communities_detected",
