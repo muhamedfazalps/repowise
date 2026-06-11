@@ -478,7 +478,7 @@ def _start_frontend(
 
 
 @click.command("serve")
-@click.option("--port", default=7337, type=int, help="API server port.")
+@click.option("--port", default=7337, type=int, help="API server port.", envvar="REPOWISE_PORT")
 @click.option("--host", default="127.0.0.1", help="Host to bind to.")
 @click.option("--workers", default=1, type=int, help="Number of uvicorn workers.")
 @click.option("--ui-port", default=3000, type=int, help="Web UI port.")
